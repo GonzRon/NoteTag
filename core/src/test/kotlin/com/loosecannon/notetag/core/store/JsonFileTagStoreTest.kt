@@ -73,6 +73,19 @@ class JsonFileTagStoreTest {
         assertEquals(listOf(confirmed), store.list())
     }
 
+    /**
+     * The order the write history is shown in is the store's promise, not the screen's: entries go
+     * in oldest-written first here, and `list()` has to hand them back newest first.
+     */
+    @Test fun listReturnsConfirmedEntriesNewestFirst() = runTest {
+        val store = JsonFileTagStore(storeFile())
+        store.put(TagEntry(uuid = "oldest", kind = "URI", label = "a", writtenAt = 100L))
+        store.put(TagEntry(uuid = "middle", kind = "URI", label = "b", writtenAt = 200L))
+        store.put(TagEntry(uuid = "newest", kind = "URI", label = "c", writtenAt = 300L))
+
+        assertEquals(listOf("newest", "middle", "oldest"), store.list().map { it.uuid })
+    }
+
     @Test fun noTmpFileRemainsAndTheJsonIsValidAfterEveryWrite() = runTest {
         val file = storeFile()
         val store = JsonFileTagStore(file)

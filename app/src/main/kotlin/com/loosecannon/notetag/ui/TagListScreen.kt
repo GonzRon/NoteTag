@@ -17,7 +17,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.loosecannon.notetag.R
 import com.loosecannon.notetag.core.store.TagEntry
 import java.util.Date
 
@@ -34,7 +36,7 @@ import java.util.Date
 fun TagListScreen(entries: List<TagEntry>, message: String?, onDismissMessage: () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("NoteTag", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
             if (message != null) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -72,12 +74,11 @@ private fun TagRow(entry: TagEntry) {
         Text(kindWord(entry.kind), style = MaterialTheme.typography.bodyMedium)
         // The one thing about a tag the owner has to know without being told twice.
         if (entry.kind == LOCAL_REF) Text("This phone only", style = MaterialTheme.typography.bodyMedium)
-        entry.writtenAt?.let { at ->
-            Text(
-                android.text.format.DateFormat.getDateFormat(context).format(Date(at)),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        // Not null by contract: `TagStore.list()` is confirmed writes only (`writtenAt != null`).
+        Text(
+            android.text.format.DateFormat.getDateFormat(context).format(Date(entry.writtenAt!!)),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

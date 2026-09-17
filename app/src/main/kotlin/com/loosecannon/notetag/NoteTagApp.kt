@@ -10,6 +10,8 @@ import com.loosecannon.notetag.nfc.RealTagIo
 import com.loosecannon.notetag.nfc.TagIo
 import com.loosecannon.notetag.write.NoteTagWriteController
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.io.File
 
 class NoteTagApp : Application() {
@@ -40,9 +42,17 @@ class AppGraph(app: Application) {
     val resolveTap = ResolveTap(codec, store)
 
     /**
-     * One controller per visit to the write screen. [scope] is the caller's, never the graph's:
-     * the controller's cleanup has to die with the screen that owns it, not with the process.
+     * Process-lived, and used for exactly one thing: undoing a LOCAL_REF mapping that was
+     * persisted before a write the owner then walked away from. A back press finishes the
+     * activity, so the write screen's `onDispose` can run after the view model store has been
+     * cleared — cleanup launched on the screen's own scope would be cancelled before it ran.
+     */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * One controller per visit to the write screen. [scope] is the caller's, so the work that
+     * drives the screen dies with it; only the mapping cleanup is handed [appScope].
      */
     fun newWriteController(sharedText: String?, scope: CoroutineScope) =
-        NoteTagWriteController(tagIo, codec, store, sharedText, scope)
+        NoteTagWriteController(tagIo, codec, store, sharedText, scope, cleanupScope = appScope)
 }

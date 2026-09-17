@@ -10,7 +10,9 @@ import com.loosecannon.notetag.core.write.WritePlanner
 import com.loosecannon.notetag.nfc.TagHandle
 import com.loosecannon.notetag.nfc.TagIo
 import com.loosecannon.notetag.nfc.WriteResult
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +43,17 @@ class NoteTagWriteController(
     private val store: TagStore,
     private val sharedText: String?,
     private val scope: CoroutineScope,
+    /**
+     * Where a mapping's cleanup runs. It outlives [scope] on purpose: a screen that is torn down
+     * by the system disposes after its view model has been cleared, and the undo of a persisted
+     * LOCAL_REF mapping must not be the thing that gets cancelled.
+     */
+    private val cleanupScope: CoroutineScope = scope,
+    /**
+     * Where the three blocking [TagIo] calls run. [scope] is the screen's, and a screen's scope
+     * dispatches on the main thread; tag I/O blocks for as long as the chip takes.
+     */
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newUuid: () -> UUID = UUID::randomUUID,
 ) {
@@ -64,7 +77,8 @@ class NoteTagWriteController(
     }
 
     private suspend fun handle(tag: TagHandle) {
-        val inspection = tagIo.inspect(tag) ?: run { _state.value = WriteState.Error("This tag type is not supported."); return }
+        val inspection = withContext(ioDispatcher) { tagIo.inspect(tag) }
+            ?: run { _state.value = WriteState.Error("This tag type is not supported."); return }
         if (!inspection.writable) { _state.value = WriteState.Error("This tag is read-only."); return }
         val maxSize = if (inspection.needsFormat) UNMEASURED else inspection.maxSize
         val plan = WritePlanner.plan(sharedText, maxSize, codec, newUuid)
@@ -89,7 +103,7 @@ class NoteTagWriteController(
         pending = pending?.let { Pending(it.plan, it.existing, consented = true) }
         _state.value = WriteState.Waiting("Hold the same tag to the phone again to write it.")
     }
-    fun cancel() { val p = pending; pending = null; p?.let { scope.launch { forget(it.plan) } }; _state.value = WriteState.Waiting("Cancelled. Hold a tag to the phone to try again.") }
+    fun cancel() { val p = pending; pending = null; p?.let { cleanupScope.launch { forget(it.plan) } }; _state.value = WriteState.Waiting("Cancelled. Hold a tag to the phone to try again.") }
 
     /**
      * The LOCAL_REF sequence (target §4.9): persist first, UNCONFIRMED (writtenAt = null); confirm
@@ -103,7 +117,7 @@ class NoteTagWriteController(
             try { store.put(entry) }                                     // (a) durably stored BEFORE the write
             catch (t: Throwable) { _state.value = WriteState.Error("Could not save the link on this phone; nothing was written to the tag."); return }
         }
-        when (val r = tagIo.write(tag, plan.records, lock = false)) {
+        when (val r = withContext(ioDispatcher) { tagIo.write(tag, plan.records, lock = false) }) {
             is WriteResult.Written -> {
                 val at = clock()
                 // A verified write is recorded even if the screen is already leaving; a store
@@ -125,8 +139,12 @@ class NoteTagWriteController(
         }
     }
 
-    /** Leaving the screen before any write: nothing can have reached a tag, so a pending LOCAL_REF mapping may go. */
-    fun abandon(): Job? { val p = pending; pending = null; return p?.let { scope.launch { forget(it.plan) } } }
+    /**
+     * Leaving the screen before any write: nothing can have reached a tag, so a pending LOCAL_REF
+     * mapping may go. It goes on [cleanupScope], which is not the screen's: a back press that
+     * finishes the activity disposes the composition after the view model is cleared.
+     */
+    fun abandon(): Job? { val p = pending; pending = null; return p?.let { cleanupScope.launch { forget(it.plan) } } }
 
     /**
      * Cleanup finishes even while the scope is being torn down: a bare `runCatching` would swallow

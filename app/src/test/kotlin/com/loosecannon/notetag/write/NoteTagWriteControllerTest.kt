@@ -16,6 +16,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -71,8 +72,18 @@ class NoteTagWriteControllerTest {
     private fun siblingMapping() =
         TagEntry(SIBLING_KEY, "LOCAL_REF", SIBLING_URI, SIBLING_URI, writtenAt = null)
 
-    private fun controller(io: TagIo, sharedText: String?, scope: CoroutineScope, tagStore: TagStore = store) =
-        NoteTagWriteController(io, codec, tagStore, sharedText, scope, clock = { WRITTEN_AT }, newUuid = { REF })
+    /**
+     * `ioDispatcher` is where the controller runs the blocking [TagIo] calls; a test dispatcher on
+     * this test's own scheduler keeps `advanceUntilIdle` in charge of when they run, instead of
+     * `Dispatchers.IO`'s real threads.
+     */
+    private fun TestScope.controller(io: TagIo, sharedText: String?, scope: CoroutineScope, tagStore: TagStore = store) =
+        NoteTagWriteController(
+            io, codec, tagStore, sharedText, scope,
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+            clock = { WRITTEN_AT },
+            newUuid = { REF },
+        )
 
     /**
      * `advanceUntilIdle` drives the test scheduler, but [JsonFileTagStore] hops to `Dispatchers.IO`,

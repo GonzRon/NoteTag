@@ -48,8 +48,11 @@ class WriteScreenDeviceBoundTest {
     )
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** Long, and not a Joplin note: the planner must reach the URI-versus-capacity decision. */
-    private val link = "https://example.invalid/notes/" + "a".repeat(120)
+    /**
+     * Not a Joplin note, so the planner reaches the URI-versus-capacity decision. Its length does
+     * not matter: each scenario derives the tag's capacity from this exact URI's serialised size.
+     */
+    private val link = "https://example.invalid/notes/one"
 
     private lateinit var storeFile: File
 
@@ -85,7 +88,7 @@ class WriteScreenDeviceBoundTest {
             WriteResult.Written(readBack = emptyList(), bytes = 0, verified = true, locked = false),
         )
         val controller = controllerOver(io)
-        rule.setContent { NoteTagTheme { WriteScreen(controller, onDone = {}) } }
+        rule.setContent { NoteTagTheme { WriteScreen(controller, sharedText = link, onDone = {}) } }
 
         controller.onTag(FakeHandle)
 
@@ -113,7 +116,7 @@ class WriteScreenDeviceBoundTest {
             WriteResult.Written(readBack = emptyList(), bytes = 0, verified = true, locked = false),
         )
         val controller = controllerOver(io)
-        rule.setContent { NoteTagTheme { WriteScreen(controller, onDone = {}) } }
+        rule.setContent { NoteTagTheme { WriteScreen(controller, sharedText = link, onDone = {}) } }
 
         controller.onTag(FakeHandle)
 

@@ -44,7 +44,10 @@ class MainViewModelTest {
         store = FakeTagStore(initial.toList())
         return MainViewModel(store) { sharedText, scope ->
             controllersMade++
-            NoteTagWriteController(FakeTagIo(null, WriteResult.Unsupported), codec, store, sharedText, scope)
+            NoteTagWriteController(
+                FakeTagIo(null, WriteResult.Unsupported), codec, store, sharedText, scope,
+                ioDispatcher = dispatcher,
+            )
         }
     }
 

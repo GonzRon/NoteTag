@@ -1,5 +1,6 @@
 package com.loosecannon.notetag.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,7 @@ import com.loosecannon.notetag.write.WriteState
 @Composable
 fun WriteScreen(
     controller: NoteTagWriteController,
-    sharedText: String? = null,
+    sharedText: String,
     onDone: () -> Unit,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
@@ -45,6 +46,14 @@ fun WriteScreen(
     val session = remember(activity, controller) {
         activity?.let { host -> NfcReaderModeSession(host) { tag -> controller.onTag(NfcTagHandle(tag)) } }
     }
+
+    /*
+     * Back belongs to the list, not to the task. Without this, back finishes the activity, and the
+     * composition is then disposed after the view model store has been cleared — the one path on
+     * which `onDispose` cannot reach a live screen scope. Going back through `onDone` keeps the
+     * whole leave-the-screen sequence inside a live activity.
+     */
+    BackHandler { onDone() }
 
     // Reader mode is a resumed-only resource: scanning while another activity is in front would
     // steal taps meant for it.
@@ -72,7 +81,7 @@ fun WriteScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("Write a tag", style = MaterialTheme.typography.headlineSmall)
-            if (sharedText != null) Text(sharedText, style = MaterialTheme.typography.bodyLarge)
+            Text(sharedText, style = MaterialTheme.typography.bodyLarge)
             when {
                 session == null || !session.available -> Text("This phone has no NFC.")
                 !session.enabled -> Text("Turn NFC on to write a tag.")

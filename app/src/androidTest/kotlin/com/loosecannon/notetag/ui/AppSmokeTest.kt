@@ -2,6 +2,7 @@ package com.loosecannon.notetag.ui
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso
 import androidx.test.core.app.ApplicationProvider
 import com.loosecannon.notetag.MainActivity
 import com.loosecannon.notetag.NoteTagApp
@@ -27,13 +29,29 @@ internal val app: NoteTagApp get() = ApplicationProvider.getApplicationContext()
  * preferences — one JSON file is the whole of its state (P19) — so a fresh install is that file's
  * absence, plus the temp file an interrupted atomic replace could have left beside it.
  *
+ * **This destroys the app's data**: every tag this install has written disappears, and a LOCAL_REF
+ * tag whose mapping is deleted can never be opened again by anyone. That is fine on a throwaway
+ * emulator and unacceptable on a phone someone uses, so the guard below refuses to run anywhere
+ * else rather than trusting whoever typed the Gradle command to have pinned the right serial.
+ *
  * Safe to do after the activity is up: the store is read on every `list()`, so wiping the file
  * simply makes the next read the fresh-install one the test is about to assert on.
  */
 internal fun clearInstall() {
+    check(isEmulator()) {
+        "clearInstall() deletes this install's tags.json, which would destroy real tags. " +
+            "It runs on an emulator only (fingerprint=${Build.FINGERPRINT}, hardware=${Build.HARDWARE}). " +
+            "Run this suite with ANDROID_SERIAL=emulator-5554."
+    }
     File(app.filesDir, "tags.json").delete()
     File(app.filesDir, "tags.json.tmp").delete()
 }
+
+private fun isEmulator(): Boolean =
+    Build.FINGERPRINT.contains("generic") ||
+        Build.FINGERPRINT.startsWith("google/sdk") ||
+        Build.HARDWARE.contains("ranchu") ||
+        Build.HARDWARE.contains("goldfish")
 
 /** Waits until at least [count] nodes carrying [text] exist, then returns. */
 internal fun ComposeTestRule.awaitText(text: String, count: Int = 1) {
@@ -85,8 +103,13 @@ class AppSmokeTest {
     /**
      * The share sheet's path. The emulator has no NFC, so the write screen may say so instead of
      * asking for a tag: either sentence proves the screen came up and told the truth.
+     *
+     * Back then has to land on the list rather than finish the activity — that is the path on
+     * which `WriteScreen`'s `onDispose` still reaches a live view model scope, so it is the one
+     * the abandon-on-leave rule depends on. Without the screen's `BackHandler` this press ends
+     * the activity and the list never appears.
      */
-    @Test fun aSharedJoplinLinkOpensTheWriteScreen() {
+    @Test fun aSharedJoplinLinkOpensTheWriteScreenAndBackReturnsToTheList() {
         val link = "joplin://x-callback-url/openNote?id=0123456789abcdef0123456789abcdef"
         val intent = Intent(context, MainActivity::class.java)
             .setAction(Intent.ACTION_SEND)
@@ -100,6 +123,12 @@ class AppSmokeTest {
                 rule.onAllNodesWithText("Hold a tag to the phone.").fetchSemanticsNodes().isNotEmpty() ||
                     rule.onAllNodesWithText("This phone has no NFC.").fetchSemanticsNodes().isNotEmpty()
             }
+
+            Espresso.pressBack()
+
+            val invitation = "Share a Joplin note or a link to NoteTag to write your first tag."
+            rule.awaitText(invitation)
+            rule.onNodeWithText(invitation).assertIsDisplayed()
         }
     }
 }
