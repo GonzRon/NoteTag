@@ -74,6 +74,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":nfc-android"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
