@@ -1,21 +1,19 @@
-# noteNFC
-** evernote support removed
+# NoteTag
 
-similar to the previously available touchanote app (no relation)
-written from scratch, accomplishes the basic functionality of allowing you to share a note with this app,
-a link to which is then written to an NFC tag.  You can then scan the NFC tag and immediately have the note
-popup in joplin.
+The narrow note-and-link NFC utility, reconstructed from its own history. This repository's
+`master` continues the original noteNFC line unchanged through `c84b881` (the last commit before
+that product grew into ServiceTag) and starts the NoteTag rewrite from there.
 
-Write NFC Tag:
-- inside of joplin, select note
-- context menu for note, select copy external link
-- share link with noteNFC app
-- noteNFC app presents write dialog to user
-- user scans NFC tag with phone
-- phone writes NFC Tag with joplin note link
+## What this first commit does, and does not do
 
-Read NFC Tag:
-- user scans NFC tag with phone
-- tag is recognized as an Joplin Note Link
-- android OS launches joplin app with deep link for document, opening note directly
+It deletes the ServiceTag design documents and the 2024 release APK from the tree, because they
+belong to the other product. It does **not** scrub anything from history, and no history rewrite
+will ever be performed here. Reachable in this repository's public history, deliberately: the
+ServiceTag design documents; the owner's public GitHub handle and issue links; the release-signer
+certificate digests; and the author name and email on every preserved commit. None of it is a
+secret — a public handle and public-key fingerprints — and all of it is already public in the
+repository this one was cloned from.
 
+Everything else about NoteTag — identity, tag format, store, screens — is written fresh in the
+commits that follow; see the migration runbook in the ServiceTag repository
+(`docs/architecture/product-split-migration.md`, §A.2) for the sequence.
