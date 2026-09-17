@@ -17,5 +17,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "noteNFC"
+rootProject.name = "NoteTag"
 include(":app", ":core")

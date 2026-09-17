@@ -16,3 +16,8 @@ local.properties
 
 # superpowers scratch
 .superpowers/
+
+# signing material never belongs in the repo (it lives in ~/.config/notenfc)
+keystore.properties
+*.jks
+*.keystore

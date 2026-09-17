@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose draws everything; the platform theme only needs to not draw an action bar. -->
+    <style name="Theme.NoteTag" parent="android:Theme.Material.NoActionBar" />
+</resources>
