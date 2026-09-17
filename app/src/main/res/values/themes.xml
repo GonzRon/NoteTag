@@ -1,6 +1,10 @@
 <resources>
     <!-- Compose draws everything; the platform theme only needs to not draw an action bar. Light,
          because NoteTagTheme is a light Material3 theme: the platform window background is what is
-         seen for the instant before the first composition, and a dark one flashes (Task 2 carry). -->
-    <style name="Theme.NoteTag" parent="android:Theme.Material.Light.NoActionBar" />
+         seen for the instant before the first composition, and a dark one flashes (Task 2 carry).
+         The background is the pack's ivory, so that instant is already NoteTag's colour; the dark
+         theme's first frame is the parent's, which Compose repaints a frame later. -->
+    <style name="Theme.NoteTag" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/notetag_ivory</item>
+    </style>
 </resources>

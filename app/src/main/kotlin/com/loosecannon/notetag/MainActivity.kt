@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,6 +29,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The ground colour runs under the system bars: the ivory (or, in the dark, the charcoal)
+        // is the app's, and a grey band across the top would not be. Scaffold pads the content
+        // back off the bars.
+        enableEdgeToEdge()
         // A recreated activity already has its screen in the view model; re-deriving it from the
         // launch intent would drag the user back to a share they have already finished with.
         if (savedInstanceState == null) viewModel.show(screenFrom(intent))
