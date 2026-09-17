@@ -84,6 +84,7 @@ class WriteScreenDeviceBoundTest {
 
     @Test fun aTagTooSmallForTheLinkWarnsBeforeItIsWrittenAndSaysSoAfterwards() {
         val io = FakeTagIo(
+            // also ≥ 49, the LOCAL_REF message: fit() runs before any question
             emptyWritableTag(maxSize = uriSize() - 1),
             WriteResult.Written(readBack = emptyList(), bytes = 0, locked = false),
         )

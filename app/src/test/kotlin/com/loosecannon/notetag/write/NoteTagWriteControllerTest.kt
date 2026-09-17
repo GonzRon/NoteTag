@@ -15,12 +15,10 @@ import com.loosecannon.notetag.ui.FakeTagStore
 import kotlin.test.assertIs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -55,15 +53,25 @@ class NoteTagWriteControllerTest {
     @Before fun setUp() {
         store = FakeTagStore()
         io = FakeTagIo(inspection(), written())
-        scope = CoroutineScope(dispatcher)
-        controller = controller()
-    }
-
-    @After fun tearDown() {
-        scope.cancel()
     }
 
     // ---- fixtures ------------------------------------------------------------------------------
+
+    /**
+     * Every case runs through here so that [scope] — the controller's scope AND its cleanup
+     * scope — is a child of the TEST's coroutine rather than a detached scope of its own: a
+     * detached `CoroutineScope` swallows anything thrown out of a `launch`, while a child of the
+     * test cancels the test with it and fails the case.
+     *
+     * Not `backgroundScope`: with the standard test dispatcher, `advanceUntilIdle()` stops as soon
+     * as no FOREGROUND task is left, so a tap launched in the background scope would never be run
+     * and every case would assert against the state before its tap.
+     */
+    private fun test(body: suspend TestScope.() -> Unit) = runTest(dispatcher) {
+        scope = CoroutineScope(coroutineContext + dispatcher)
+        controller = controller()
+        body()
+    }
 
     /**
      * `ioDispatcher` is where the controller runs the blocking [TagIo] calls; the test dispatcher
@@ -131,7 +139,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 1: row 7, failure injection 1 ---------------------------------------------------------
 
-    @Test fun aFailedWriteRetainsTheLocalRefMappingUnconfirmed() = runTest(dispatcher) {
+    @Test fun aFailedWriteRetainsTheLocalRefMappingUnconfirmed() = test {
         io.inspection = deviceBoundInspection
         io.writeResult = WriteResult.Failed("tag left the field", cause = IOException("lost"))
 
@@ -145,7 +153,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 2: row 7, failure injection 2 ---------------------------------------------------------
 
-    @Test fun aStoreThatCannotKeepTheMappingWritesNothingToTheTag() = runTest(dispatcher) {
+    @Test fun aStoreThatCannotKeepTheMappingWritesNothingToTheTag() = test {
         io.inspection = deviceBoundInspection
         val c = controller(tagStore = FailingStore(store))
 
@@ -158,9 +166,9 @@ class NoteTagWriteControllerTest {
 
     // ---- 3: row 7, failure injection 3a --------------------------------------------------------
 
-    @Test fun aTooSmallTagRemovesTheMappingNoBytesCanHaveReachedIt() = runTest(dispatcher) {
+    @Test fun aTooSmallTagRemovesTheMappingNoBytesCanHaveReachedIt() = test {
         io.inspection = deviceBoundInspection
-        io.writeResult = WriteResult.TooSmall(maxSize = 8, needed = 49)
+        io.writeResult = WriteResult.TooSmall(maxSize = 60, needed = 99)   // the capacity this tag really has
 
         drive(controller)
 
@@ -171,7 +179,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 4: row 7, failure injection 3b --------------------------------------------------------
 
-    @Test fun abandonAndCancelRemoveAMappingNothingCanHaveReached() = runTest(dispatcher) {
+    @Test fun abandonAndCancelRemoveAMappingNothingCanHaveReached() = test {
         io.inspection = deviceBoundInspection
 
         store.put(siblingMapping())          // another tag's mapping, which must survive all of this
@@ -213,7 +221,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 5: row 7 ------------------------------------------------------------------------------
 
-    @Test fun aVerifyMismatchRetainsTheMappingUnconfirmed() = runTest(dispatcher) {
+    @Test fun aVerifyMismatchRetainsTheMappingUnconfirmed() = test {
         io.inspection = deviceBoundInspection
         io.writeResult = WriteResult.VerifyMismatch(emptyList())
 
@@ -227,7 +235,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 6: row 7 ------------------------------------------------------------------------------
 
-    @Test fun aWrittenLocalRefIsRetainedAndConfirmed() = runTest(dispatcher) {
+    @Test fun aWrittenLocalRefIsRetainedAndConfirmed() = test {
         io.inspection = deviceBoundInspection
 
         drive(controller)
@@ -239,11 +247,13 @@ class NoteTagWriteControllerTest {
         assertEquals(WRITTEN_AT, store.entry(REF_KEY).writtenAt)
         assertEquals(listOf(REF_KEY), store.list().map { it.uuid })          // CONFIRMED: in the history
         assertEquals(false, io.lastWriteLock)                                // NoteTag never locks in this phase
+        assertEquals("the standalone lock is never called", 0, io.lockCalls)  // and never blind, either
+        assertNull(io.lastLockExpected)
     }
 
     // ---- 6b: row 7, the portable kinds ---------------------------------------------------------
 
-    @Test fun aPortableKindIsAConvenienceEntryOnlyWhenTheWriteLanded() = runTest(dispatcher) {
+    @Test fun aPortableKindIsAConvenienceEntryOnlyWhenTheWriteLanded() = test {
         controller.onTag(FakeHandle); advanceUntilIdle()     // a roomy empty tag, a portable kind: no question
 
         val state = controller.state.value as WriteState.Written
@@ -270,7 +280,7 @@ class NoteTagWriteControllerTest {
      * small for the URI still takes it. There is no unmeasured-capacity stand-in any more: a tag
      * with no measured capacity is routed to `format` and never reaches the planner at all.
      */
-    @Test fun aCompactPlanIsWrittenOnATagTooSmallForTheUri() = runTest(dispatcher) {
+    @Test fun aCompactPlanIsWrittenOnATagTooSmallForTheUri() = test {
         io.inspection = deviceBoundInspection
         val c = controller(sharedText = JOPLIN)
 
@@ -283,7 +293,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 8: row 9 / P11 ------------------------------------------------------------------------
 
-    @Test fun aServiceTagTagIsConfirmedOnceForThisExactQuestion() = runTest(dispatcher) {
+    @Test fun aServiceTagTagIsConfirmedOnceForThisExactQuestion() = test {
         io.inspection = readable(serviceTagRecords())
         val c = controller(sharedText = JOPLIN)
 
@@ -314,7 +324,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 8b: the binding warning, before the write ---------------------------------------------
 
-    @Test fun aDeviceBoundWriteWarnsBeforeAnythingIsPersistedOrWritten() = runTest(dispatcher) {
+    @Test fun aDeviceBoundWriteWarnsBeforeAnythingIsPersistedOrWritten() = test {
         io.inspection = deviceBoundInspection
 
         controller.onTag(FakeHandle); advanceUntilIdle()
@@ -343,7 +353,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 8c: one confirmation, both sentences --------------------------------------------------
 
-    @Test fun oneConfirmationCarriesBothTheOverwriteAndTheBindingSentence() = runTest(dispatcher) {
+    @Test fun oneConfirmationCarriesBothTheOverwriteAndTheBindingSentence() = test {
         io.inspection = readable(serviceTagRecords(), maxSize = SMALL)
 
         controller.onTag(FakeHandle); advanceUntilIdle()
@@ -367,7 +377,7 @@ class NoteTagWriteControllerTest {
     // ---- 6c: R1/R2 — the format tap plans nothing, the next tap plans against the real capacity -
 
     /** R1 — the Format tap plans nothing, mints no uuid, persists nothing. */
-    @Test fun aFormatableTagIsFormattedAndNothingIsPlannedOrPersisted() = runTest(dispatcher) {
+    @Test fun aFormatableTagIsFormattedAndNothingIsPlannedOrPersisted() = test {
         var minted = 0
         val c = controller(newUuid = { minted++; REF })
         io.inspection = TagInspection(FakeHandle.uid, TagRead.Readable(emptyList()), maxSize = -1, writable = true, needsFormat = true, canLock = true)
@@ -381,12 +391,23 @@ class NoteTagWriteControllerTest {
         c.onTag(FakeHandle); advanceUntilIdle()
         assertEquals(WriteState.Confirm(listOf(OverwriteWording.DEVICE_BOUND), "Write"), c.state.value)   // the URI does not fit 60: LOCAL_REF, warned BEFORE the write
         assertEquals(1, minted)
+        // The tap that formatted was not the end of the task: consent, then a third tap, completes it.
+        c.confirm()
+        io.writeResult = written()
+        c.onTag(FakeHandle); advanceUntilIdle()
+        val landed = c.state.value as WriteState.Written
+        assertTrue(landed.deviceBound); assertEquals(WRITTEN_AT, landed.entry.writtenAt)
+        assertNotNull(store.get(REF_KEY)!!.writtenAt)                            // CONFIRMED by the read-back
+        assertEquals(1, store.list().size)
+        // Two uuids minted, one mapping kept: every tap that reaches the planner plans afresh, and
+        // only the plan of the tap that WRITES is ever persisted. The format tap minted none.
+        assertEquals(2, minted); assertEquals(1, store.all().size)
     }
 
     // ---- 6d: a tag that cannot be read says one sentence (review round) ------------------------
 
     /** A platform exception's `message` is not English and not the owner's business. */
-    @Test fun aTagThatCannotBeReadIsOneFixedSentenceAndTheNextTapIsStillHandled() = runTest(dispatcher) {
+    @Test fun aTagThatCannotBeReadIsOneFixedSentenceAndTheNextTapIsStillHandled() = test {
         io.inspection = deviceBoundInspection
         io.inspectFailure = IOException("android.nfc.TagLostException: Tag was lost.")
 
@@ -406,7 +427,7 @@ class NoteTagWriteControllerTest {
     // ---- 6e: C1 — unreadable NDEF is a question, never "empty" ---------------------------------
 
     /** C1 — unreadable NDEF is a question, never "empty". */
-    @Test fun anUnreadableTagIsAQuestionNotAnEmptyTag() = runTest(dispatcher) {
+    @Test fun anUnreadableTagIsAQuestionNotAnEmptyTag() = test {
         io.inspection = TagInspection(FakeHandle.uid, TagRead.Unreadable("NDEF on tag could not be parsed", null), maxSize = 137, writable = true, needsFormat = false, canLock = true)
         controller.onTag(FakeHandle); advanceUntilIdle()
         val s = assertIs<WriteState.Confirm>(controller.state.value)
@@ -416,7 +437,7 @@ class NoteTagWriteControllerTest {
     // ---- 6f: I1 — `attempted` decides retain versus remove -------------------------------------
 
     /** I1 — attempted decides retain vs remove for a persisted LOCAL_REF mapping. */
-    @Test fun aRefusedWriteRemovesTheMappingAnIndeterminateOneRetainsIt() = runTest(dispatcher) {
+    @Test fun aRefusedWriteRemovesTheMappingAnIndeterminateOneRetainsIt() = test {
         // (a) attempted = false: nothing reached the tag → the mapping goes
         io.inspection = deviceBoundInspection; io.writeResult = WriteResult.Failed("tag still needs formatting", attempted = false)
         drive(controller)          // tap → Confirm(DEVICE_BOUND) → confirm() → tap
@@ -432,7 +453,7 @@ class NoteTagWriteControllerTest {
     // ---- 6g: invariant 7 — fit() before consent ------------------------------------------------
 
     /** Invariant 7 — fit() before consent; too small removes a pre-persisted mapping and writes nothing. */
-    @Test fun aTagTooSmallEvenForTheLocalRefIsRefusedBeforeAnything() = runTest(dispatcher) {
+    @Test fun aTagTooSmallEvenForTheLocalRefIsRefusedBeforeAnything() = test {
         io.inspection = TagInspection(FakeHandle.uid, TagRead.Readable(emptyList()), maxSize = 40, writable = true, needsFormat = false, canLock = true)  // LOCAL_REF needs 49
         controller.onTag(FakeHandle); advanceUntilIdle()
         assertEquals(WriteState.Error("This tag is too small: it holds 40 bytes and this needs 49."), controller.state.value)
@@ -441,7 +462,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 9: invariant 11 -----------------------------------------------------------------------
 
-    @Test fun twoTapsBeforeTheFirstCompletesInspectOnce() = runTest(dispatcher) {
+    @Test fun twoTapsBeforeTheFirstCompletesInspectOnce() = test {
         controller.onTag(FakeHandle)
         controller.onTag(FakeHandle)
         advanceUntilIdle()
@@ -450,7 +471,7 @@ class NoteTagWriteControllerTest {
         assertEquals(1, io.writeAttempts)
     }
 
-    @Test fun aThirdTapAfterAWrittenResultIsDropped() = runTest(dispatcher) {
+    @Test fun aThirdTapAfterAWrittenResultIsDropped() = test {
         io.inspection = deviceBoundInspection
 
         drive(controller)                                                    // 1: the warning, 2: the write
@@ -467,7 +488,7 @@ class NoteTagWriteControllerTest {
 
     // ---- 10: row 6 -----------------------------------------------------------------------------
 
-    @Test fun aRefusedPlanNeverReachesTheWriter() = runTest(dispatcher) {
+    @Test fun aRefusedPlanNeverReachesTheWriter() = test {
         val c = controller(sharedText = "there is no link in this text at all")
 
         c.onTag(FakeHandle); advanceUntilIdle()
