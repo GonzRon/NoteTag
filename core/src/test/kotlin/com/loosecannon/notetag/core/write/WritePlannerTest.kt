@@ -35,6 +35,15 @@ class WritePlannerTest {
         assertEquals(NoteTagContent.LocalRef(fixedUuid), p.content)
         assertEquals(49, NdefSize.serialisedSize(p.records))     // a LOCAL_REF is the same 19-byte body shape
     }
+    /**
+     * A scheme that is neither blocked nor on the allowlist is refused at plan time: `ResolveTap`
+     * answers it with a sentence rather than a launch, so a tag holding it would be a tag NoteTag
+     * cannot open (review round, 2026-09-17).
+     */
+    @Test fun aSchemeNoteTagWouldNotOpenIsRefusedRatherThanWritten() {
+        val p = assertIs<WritePlan.Refused>(WritePlanner.plan("zotero://select/items/1", 1000, codec) { fixedUuid })
+        assertEquals("NoteTag does not open zotero links.", p.reason)
+    }
     @Test fun aRejectedSchemeIsRefusedBeforeAnyEncoding() {
         assertIs<WritePlan.Refused>(WritePlanner.plan("javascript:alert(1)", 1000, codec))
         assertIs<WritePlan.Refused>(WritePlanner.plan("no link here at all", 1000, codec))

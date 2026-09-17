@@ -1,5 +1,6 @@
 package com.loosecannon.notetag.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,8 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ElevatedCard
@@ -25,12 +24,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -167,20 +168,25 @@ private fun TagRow(entry: TagEntry) {
             // The one thing about a tag the owner has to know without being told twice.
             if (entry.kind == LOCAL_REF) PhoneOnlyChip()
         }
-        // Not null by contract: `TagStore.list()` is confirmed writes only (`writtenAt != null`).
-        Text(
-            android.text.format.DateFormat.getDateFormat(context).format(Date(entry.writtenAt!!)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // `TagStore.list()` is confirmed writes only, so this is always there in practice — but a
+        // contract is not a reason to crash the list if it ever slips (review round, 2026-09-17).
+        entry.writtenAt?.let { at ->
+            Text(
+                android.text.format.DateFormat.getDateFormat(context).format(Date(at)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
 /** What kind of thing the tag holds: outlined, because it is a fact and not a warning. */
 @Composable
-private fun KindChip(word: String) = AssistChip(
-    onClick = {},
-    label = { Text(word, style = MaterialTheme.typography.labelLarge) },
+private fun KindChip(word: String) = ChipLabel(
+    word,
+    container = Color.Transparent,
+    content = MaterialTheme.colorScheme.onSurface,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
 )
 
 /**
@@ -188,15 +194,32 @@ private fun KindChip(word: String) = AssistChip(
  * spelled once, in the pale blue tint.
  */
 @Composable
-internal fun PhoneOnlyChip() = AssistChip(
-    onClick = {},
-    label = { Text("This phone only", style = MaterialTheme.typography.labelLarge) },
-    colors = AssistChipDefaults.assistChipColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ),
+internal fun PhoneOnlyChip() = ChipLabel(
+    "This phone only",
+    container = MaterialTheme.colorScheme.primaryContainer,
+    content = MaterialTheme.colorScheme.onPrimaryContainer,
     border = null,
 )
+
+/**
+ * Chip-shaped, deliberately NOT a chip: `AssistChip(onClick = {})` is announced as a button and
+ * takes focus as one, and neither of these two has anything to press. A bordered or tinted
+ * `Surface` around the same words, in the same colours, says the same thing to the eye and the
+ * right thing to a screen reader (review round, 2026-09-17).
+ */
+@Composable
+private fun ChipLabel(word: String, container: Color, content: Color, border: BorderStroke?) = Surface(
+    shape = MaterialTheme.shapes.small,
+    color = container,
+    contentColor = content,
+    border = border,
+) {
+    Text(
+        word,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
 
 private const val LOCAL_REF = "LOCAL_REF"
 

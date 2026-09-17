@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         /** The NFC trampoline's hand-off: one sentence, shown on the list as a result card. */
-        const val EXTRA_MESSAGE = "com.loosecannon.notetag.MESSAGE"
+        val EXTRA_MESSAGE = "${BuildConfig.APPLICATION_ID}.MESSAGE"
     }
 }
 

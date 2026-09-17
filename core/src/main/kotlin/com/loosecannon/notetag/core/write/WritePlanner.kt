@@ -30,6 +30,9 @@ object WritePlanner {
         val uri = LinkLaunchPolicy.extractUri(sharedText) ?: return WritePlan.Refused("no link in the shared text")
         val check = LinkLaunchPolicy.check(uri)
         if (check is LinkCheck.Rejected) return WritePlan.Refused(check.reason)
+        // Outside the allowlist: ResolveTap will never launch it, so writing it would put a link
+        // on a tag that this product cannot open on the way back (review round, 2026-09-17).
+        if (check is LinkCheck.NeedsConfirmation) return WritePlan.Refused("NoteTag does not open ${check.scheme} links.")
         val joplin = JoplinId.idFromOpenNoteUri(uri)?.let(JoplinId::normalise)
         if (joplin != null) {
             val c = NoteTagContent.JoplinNote(joplin)

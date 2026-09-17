@@ -30,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -63,7 +64,9 @@ class NoteTagWriteControllerTest {
         canLock = true,
     )
 
-    private fun written() = WriteResult.Written(emptyList(), 49, verified = true, locked = false)
+    /** `verified = false` is what the interim adapter returns for a blank, just-formatted tag. */
+    private fun written(verified: Boolean = true) =
+        WriteResult.Written(emptyList(), 49, verified = verified, locked = false)
 
     private fun retainedMapping() =
         TagEntry(REF_KEY, "LOCAL_REF", LONG_URI, LONG_URI, writtenAt = null)
@@ -364,6 +367,65 @@ class NoteTagWriteControllerTest {
 
         assertTrue((c.state.value as WriteState.Written).deviceBound)
         assertEquals(1, io.writeAttempts)
+    }
+
+    // ---- 6c: an unverified format is not a write (review round) --------------------------------
+
+    /**
+     * The interim `NdefFormatable` path returns `Written(verified = false)`: the tag was formatted,
+     * but `Ndef.get(tag)` stays null until it is rediscovered, so nothing was measured, nothing was
+     * capacity-checked, nothing was written and nothing was read back. The controller must say
+     * "hold it again" and leave `done` false, so the tap that does all of that is not dropped.
+     */
+    @Test fun anUnverifiedFormatIsNotAWriteAndDoesNotEndTheTask() = runTest {
+        val io = FakeTagIo(inspection(maxSize = SMALL), written(verified = false))
+        val work = SupervisorJob()
+        val c = controller(io, LONG_URI, this + work)
+
+        c.onTag(FakeHandle); settle(work)
+        assertEquals(WriteState.Confirm(listOf(OverwriteWording.DEVICE_BOUND), "Write"), c.state.value)
+        c.confirm()
+        c.onTag(FakeHandle); settle(work)
+
+        assertEquals(
+            WriteState.Waiting("Formatted the tag. Hold it to the phone again to finish writing the link."),
+            c.state.value,
+        )
+        assertNull(store.entry(REF_KEY).writtenAt)                           // RETAINED, NOT CONFIRMED
+        assertEquals(emptyList<TagEntry>(), store.list())                    // and absent from the history
+
+        // `done` was never set: the second tap is handled, and a verified result completes it.
+        io.result = written()
+        c.onTag(FakeHandle); settle(work)
+        assertEquals(WriteState.Confirm(listOf(OverwriteWording.DEVICE_BOUND), "Write"), c.state.value)
+        c.confirm()
+        c.onTag(FakeHandle); settle(work)
+
+        assertTrue((c.state.value as WriteState.Written).deviceBound)
+        assertEquals(WRITTEN_AT, store.entry(REF_KEY).writtenAt)             // CONFIRMED, once
+        assertEquals(listOf(REF_KEY), store.list().map { it.uuid })
+    }
+
+    // ---- 6d: a tag that cannot be read says one sentence (review round) ------------------------
+
+    /** A platform exception's `message` is not English and not the owner's business. */
+    @Test fun aTagThatCannotBeReadIsOneFixedSentenceAndTheNextTapIsStillHandled() = runTest {
+        val io = FakeTagIo(inspection(maxSize = SMALL), written())
+        io.inspectFailure = IOException("android.nfc.TagLostException: Tag was lost.")
+        val work = SupervisorJob()
+        val c = controller(io, LONG_URI, this + work)
+
+        c.onTag(FakeHandle); settle(work)
+
+        assertEquals(WriteState.Error("Could not read the tag. Hold it still and try again."), c.state.value)
+        assertEquals(0, io.writeAttempts)
+
+        // `busy` was released in the finally, so the tap after the failure is handled, not dropped.
+        io.inspectFailure = null
+        c.onTag(FakeHandle); settle(work)
+
+        assertEquals(2, io.inspectCount)
+        assertEquals(WriteState.Confirm(listOf(OverwriteWording.DEVICE_BOUND), "Write"), c.state.value)
     }
 
     // ---- 9: invariant 11 -----------------------------------------------------------------------

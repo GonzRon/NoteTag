@@ -8,13 +8,19 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 
 @Serializable
 private data class StoreFile(val version: Int = 1, val entries: List<TagEntry> = emptyList())
 
-/** temp file → fsync → atomic rename over the store (target §4.9). */
+/**
+ * temp file → fsync → atomic rename over the store → fsync the containing DIRECTORY (target §4.9).
+ * Without the directory sync the rename itself can be lost to a power cut even though the bytes
+ * were durable, and the store would come back at its previous entry list.
+ */
 fun interface AtomicReplace { fun replace(target: File, bytes: ByteArray) }
 
 object FsyncRename : AtomicReplace {
@@ -25,6 +31,12 @@ object FsyncRename : AtomicReplace {
             FileOutputStream(tmp).use { out -> out.write(bytes); out.fd.sync() }
             Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
             moved = true
+            // The rename needs its own durability barrier. Wrapped, because some filesystems
+            // refuse to open a directory as a channel at all, and a store that was written is not
+            // going to be reported as a failure over that.
+            runCatching {
+                FileChannel.open(target.parentFile.toPath(), StandardOpenOption.READ).use { it.force(true) }
+            }
         } finally {
             // A failed write, sync or move must not leave <name>.tmp behind for the next one.
             if (!moved) tmp.delete()

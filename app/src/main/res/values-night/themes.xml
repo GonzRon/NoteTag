@@ -1,0 +1,9 @@
+<resources>
+    <!-- The dark counterpart of the platform theme. Compose still draws everything; this is only
+         the window background for the instant before the first composition, and in dark mode the
+         light ground flashes on a cold start. Slate is the pack's dark ground, so that instant is
+         already NoteTag's colour in either mode. -->
+    <style name="Theme.NoteTag" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/notetag_slate</item>
+    </style>
+</resources>

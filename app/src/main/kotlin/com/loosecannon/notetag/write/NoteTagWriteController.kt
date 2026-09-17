@@ -10,6 +10,7 @@ import com.loosecannon.notetag.core.write.WritePlanner
 import com.loosecannon.notetag.nfc.TagHandle
 import com.loosecannon.notetag.nfc.TagIo
 import com.loosecannon.notetag.nfc.WriteResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +72,9 @@ class NoteTagWriteController(
         if (done || !busy.compareAndSet(false, true)) return          // single-flight (invariant 11)
         scope.launch {
             try { handle(tag) }
-            catch (t: Throwable) { _state.value = WriteState.Error(t.message ?: "the tag could not be read") }
+            // One sentence, never the platform's: a TagLostException's message is not English
+            // and not the owner's business (review round, 2026-09-17).
+            catch (t: Throwable) { _state.value = WriteState.Error("Could not read the tag. Hold it still and try again.") }
             finally { busy.set(false) }
         }
     }
@@ -115,10 +118,19 @@ class NoteTagWriteController(
         val entry = entryFor(plan)                                       // writtenAt == null for every plan
         if (plan is WritePlan.DeviceBound) {
             try { store.put(entry) }                                     // (a) durably stored BEFORE the write
+            catch (t: CancellationException) { throw t }                  // a cancelled screen is not a store failure
             catch (t: Throwable) { _state.value = WriteState.Error("Could not save the link on this phone; nothing was written to the tag."); return }
         }
         when (val r = withContext(ioDispatcher) { tagIo.write(tag, plan.records, lock = false) }) {
-            is WriteResult.Written -> {
+            // An UNVERIFIED Written is a format, not a write. The interim adapter's
+            // NdefFormatable path returns Written(verified = false): `Ndef.get(tag)` stays null
+            // until the tag is rediscovered, so measuring, the capacity check, the write and the
+            // verify are all the NEXT tap's job. Nothing is confirmed, and `done` stays false so
+            // that tap is not dropped; a DeviceBound mapping stays persisted-unconfirmed, exactly
+            // as for any other ambiguous outcome (rule b).
+            is WriteResult.Written -> if (!r.verified) {
+                _state.value = WriteState.Waiting("Formatted the tag. Hold it to the phone again to finish writing the link.")
+            } else {
                 val at = clock()
                 // A verified write is recorded even if the screen is already leaving; a store
                 // failure still cannot escape.

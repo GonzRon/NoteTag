@@ -1,9 +1,9 @@
 <resources>
-    <!-- Compose draws everything; the platform theme only needs to not draw an action bar. Light,
-         because NoteTagTheme is a light Material3 theme: the platform window background is what is
-         seen for the instant before the first composition, and a dark one flashes (Task 2 carry).
-         The background is the pack's frost, so that instant is already NoteTag's colour; the dark
-         theme's first frame is the parent's, which Compose repaints a frame later. -->
+    <!-- Compose draws everything; the platform theme only needs to not draw an action bar. This
+         is the LIGHT ground: the platform window background is what is seen for the instant before
+         the first composition, and the wrong one flashes (Task 2 carry). The background is the
+         pack's frost, so that instant is already NoteTag's colour; `values-night/themes.xml` is the
+         same style on the pack's slate, so a dark-mode cold start does not flash light. -->
     <style name="Theme.NoteTag" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/notetag_frost</item>
     </style>

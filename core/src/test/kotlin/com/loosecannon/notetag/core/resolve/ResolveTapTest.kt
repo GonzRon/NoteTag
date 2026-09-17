@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.io.TempDir
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertIs
 
 /**
@@ -132,6 +133,27 @@ class ResolveTapTest {
         val outcome = resolver.resolve(records)
 
         assertEquals(TapOutcome.Message("This tag was written on another phone, so this phone cannot open it."), outcome)
+    }
+
+    /**
+     * A store this phone cannot read is not a tag written somewhere else. The "another phone"
+     * sentence would be a false claim about the tag, so a `StoreCorrupt` gets its own sentence
+     * (review round, 2026-09-17).
+     */
+    @Test fun aStoreThatCannotBeReadIsItsOwnSentenceNotTheAnotherPhoneOne() = runTest {
+        val file = File(tempDir, "corrupt-${UUID.randomUUID()}.json")
+        file.writeText("not json")
+        val store = JsonFileTagStore(file)
+        val records = codec.encode(NoteTagContent.LocalRef(UUID.randomUUID()))
+        val resolver = ResolveTap(codec, store)
+
+        val outcome = resolver.resolve(records)
+
+        assertEquals(TapOutcome.Message("This phone's tag list could not be read."), outcome)
+        assertNotEquals(
+            TapOutcome.Message("This tag was written on another phone, so this phone cannot open it."),
+            outcome,
+        )
     }
 
     @Test fun aLocalRefHitOnABlockedTargetIsAMessageNeverOpen() = runTest {

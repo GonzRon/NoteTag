@@ -20,7 +20,7 @@ and `BuildConfig` carries the same strings, so the filter and the codec cannot d
 ## What a tag holds
 
 One record, format v1 — `version | kind | flags | body` — in one of three kinds: `JOPLIN_NOTE`
-(the note's 16 id bytes, 49 bytes on the tag), `URI` (the link itself), or `LOCAL_REF` (a 16-byte
+(the note's 16 id bytes, 49 bytes as an NDEF message), `URI` (the link itself), or `LOCAL_REF` (a 16-byte
 UUID that means nothing without this phone).
 
 The writer decides on its own and tells you what it did: a Joplin note is written as the compact
@@ -36,7 +36,10 @@ before any byte reaches the tag.
 - **It does not write ServiceTag tags, and does not read them as damage.** A tag belonging to the
   sibling product is named as ServiceTag's, and overwriting it takes one explicit confirmation.
 - **No export or import of the local map yet**, so a `LOCAL_REF` tag does not survive a move to a
-  new phone. Back up the app if you rely on one.
+  new phone. Back up the app if you rely on one. The map is excluded from Android's cloud backup
+  and from device-to-device transfer by design (`res/xml/data_extraction_rules.xml`) until the
+  recovery roadmap item lands, so a restored or transferred install starts with no mappings rather
+  than with mappings it cannot vouch for.
 - On a tap it opens `joplin`, `obsidian`, `logseq`, `http` and `https` links; any other scheme
   becomes a sentence on the list rather than a launch.
 

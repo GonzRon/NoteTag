@@ -16,11 +16,15 @@ object FakeHandle : TagHandle {
 
 /**
  * The seam, recorded: what the tag holds, how often the writer was reached at all, and with which
- * records. [inspection] and [result] are vars so a test can change what the second tap finds.
+ * records. [inspection], [inspectFailure] and [result] are vars so a test can change what the
+ * second tap finds — including the whole [WriteResult], so `verified` is a test's choice and an
+ * unverified format is expressible.
  */
 class FakeTagIo(
     var inspection: TagInspection?,
     var result: WriteResult,
+    /** What `inspect` throws instead of answering: the real one throws `IOException` on a lost tag. */
+    var inspectFailure: Throwable? = null,
 ) : TagIo {
     var inspectCount = 0
         private set
@@ -32,6 +36,7 @@ class FakeTagIo(
 
     override fun inspect(tag: TagHandle): TagInspection? {
         inspectCount++
+        inspectFailure?.let { throw it }
         return inspection
     }
 

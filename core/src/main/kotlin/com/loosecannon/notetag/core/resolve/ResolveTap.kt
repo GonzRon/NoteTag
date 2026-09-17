@@ -8,6 +8,7 @@ import com.loosecannon.notetag.core.store.TagStore
 import com.loosecannon.notetag.core.tag.JoplinId
 import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent
+import kotlinx.coroutines.CancellationException
 
 sealed interface TapOutcome {
     /** Launch [uri] through the safe launcher; [entryUuid] is touched in the store if present. */
@@ -28,15 +29,7 @@ class ResolveTap(private val codec: NoteTagCodec, private val store: TagStore) {
             is LinkCheck.NeedsConfirmation -> TapOutcome.Message("This tag holds a ${check.scheme} link, which NoteTag does not open by itself: ${check.uri}")
             is LinkCheck.Rejected -> TapOutcome.Message("This tag holds a link NoteTag will not open (${check.reason}).")
         }
-        is NoteTagContent.LocalRef -> {
-            val entry = runCatching { store.get(c.uuid.toString()) }.getOrNull()
-            val target = entry?.target
-            if (target == null) TapOutcome.Message("This tag was written on another phone, so this phone cannot open it.")
-            else when (val check = LinkLaunchPolicy.check(target)) {
-                is LinkCheck.Accepted -> TapOutcome.Open(check.uri, entry.uuid)
-                else -> TapOutcome.Message("This tag points at a link NoteTag will not open.")
-            }
-        }
+        is NoteTagContent.LocalRef -> localRef(c.uuid.toString())
         is NoteTagContent.Foreign ->
             if (c.description.contains("type=${OverwriteWording.SIBLING_DOMAIN}:")) TapOutcome.Message("This tag belongs to ServiceTag, not NoteTag.")
             else TapOutcome.Message("Not a NoteTag tag.")
@@ -44,5 +37,27 @@ class ResolveTap(private val codec: NoteTagCodec, private val store: TagStore) {
         is NoteTagContent.NewerVersion -> TapOutcome.Message("This tag needs a newer NoteTag (format ${c.version}).")
         is NoteTagContent.UnknownKind -> TapOutcome.Message("This tag holds a kind this NoteTag does not know (${c.kind}).")
         NoteTagContent.Empty -> TapOutcome.Message("This tag is empty.")
+    }
+
+    /**
+     * The only kind that needs the store — and so the only place a store failure could be mistaken
+     * for a miss. A tag list this phone cannot read is NOT a tag written somewhere else, and saying
+     * so would be a false statement about the tag, so it gets its own sentence (review round,
+     * 2026-09-17). Cancellation is not a store failure and is rethrown.
+     */
+    private suspend fun localRef(uuid: String): TapOutcome {
+        val entry = try {
+            store.get(uuid)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            return TapOutcome.Message("This phone's tag list could not be read.")
+        }
+        val target = entry?.target
+            ?: return TapOutcome.Message("This tag was written on another phone, so this phone cannot open it.")
+        return when (val check = LinkLaunchPolicy.check(target)) {
+            is LinkCheck.Accepted -> TapOutcome.Open(check.uri, entry.uuid)
+            else -> TapOutcome.Message("This tag points at a link NoteTag will not open.")
+        }
     }
 }

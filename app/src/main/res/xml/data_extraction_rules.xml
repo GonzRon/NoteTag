@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- `allowBackup="false"` stops cloud backup only; from targetSdk 36 a device-to-device transfer
+     is governed here, and a transfer that carried tags.json to a new phone would contradict what
+     the README says a LOCAL_REF tag is. The local map is excluded from both until the export and
+     import roadmap item lands. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="tags.json" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="tags.json" />
+    </device-transfer>
+</data-extraction-rules>

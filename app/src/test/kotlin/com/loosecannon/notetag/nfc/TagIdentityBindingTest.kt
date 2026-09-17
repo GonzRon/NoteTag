@@ -62,6 +62,22 @@ class TagIdentityBindingTest {
         )
     }
 
+    /**
+     * "No second copy anywhere, including the manifest" includes the component names: a
+     * fully-qualified `android:name` is the package root written out a second time. Every one of
+     * them is namespace-relative, so the merger derives it from the single Gradle value.
+     */
+    @Test fun theManifestNamesNoComponentByItsPackageRoot() {
+        val fullyQualified = Regex("android:name=\"([^\"]*)\"").findAll(manifest)
+            .map { it.groupValues[1] }
+            .filter { it.startsWith(BuildConfig.APPLICATION_ID) }
+            .toList()
+        assertEquals(
+            "no android:name may repeat the package root; use the namespace-relative form",
+            emptyList<String>(), fullyQualified,
+        )
+    }
+
     /** Exactly one NDEF-exported filter, and exactly one place that defines the placeholder. */
     @Test fun oneFilterAndOneDefinition() {
         assertEquals(
