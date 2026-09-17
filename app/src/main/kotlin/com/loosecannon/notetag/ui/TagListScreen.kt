@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CardDefaults
@@ -61,9 +61,12 @@ fun TagListScreen(entries: List<TagEntry>, message: String?, onDismissMessage: (
                 EmptyState(Modifier.weight(1f))
             } else {
                 LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    items(entries, key = { it.uuid }) { entry ->
+                    itemsIndexed(entries, key = { _, entry -> entry.uuid }) { index, entry ->
                         TagRow(entry)
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        // Between rows only: a rule under the last one is a line under nothing.
+                        if (index < entries.lastIndex) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        }
                     }
                 }
             }
@@ -94,7 +97,7 @@ internal fun NoteTagTopBar() = CenterAlignedTopAppBar(
     ),
 )
 
-/** A sentence that arrived from somewhere else: paper, an amber rail, and the mark behind it. */
+/** A sentence that arrived from somewhere else: paper, an azure rail, and the mark behind it. */
 @Composable
 private fun ResultCard(message: String, onDismiss: () -> Unit) {
     ElevatedCard(
@@ -122,7 +125,7 @@ private fun ResultCard(message: String, onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    // TextButton's own content colour is `primary`, which is the amber.
+                    // TextButton's own content colour is `primary`, which is the azure.
                     TextButton(onClick = onDismiss) { Text("Dismiss") }
                 }
             }
@@ -182,7 +185,7 @@ private fun KindChip(word: String) = AssistChip(
 
 /**
  * The one warning the app repeats — on the list, and again on the write screen — so it is one chip,
- * spelled once, in the amber tint.
+ * spelled once, in the pale blue tint.
  */
 @Composable
 internal fun PhoneOnlyChip() = AssistChip(

@@ -2,10 +2,10 @@
 <!-- The launcher mark's own six colours, named once for the platform side of the app. Compose
      reads the Kotlin tokens in ui/NoteTagTheme.kt; the only XML use is the window background. -->
 <resources>
-    <color name="notetag_ivory">#F7F5EF</color>
-    <color name="notetag_paper">#FCFAF5</color>
-    <color name="notetag_amber">#E2A633</color>
-    <color name="notetag_umber">#4A3424</color>
-    <color name="notetag_charcoal">#1B1F22</color>
-    <color name="notetag_warm_grey">#8C8B86</color>
+    <color name="notetag_frost">#F4F7FB</color>
+    <color name="notetag_paper">#FFFFFF</color>
+    <color name="notetag_azure">#1F5FA8</color>
+    <color name="notetag_navy">#0B3A6E</color>
+    <color name="notetag_slate">#2B3038</color>
+    <color name="notetag_mist">#8A96A6</color>
 </resources>

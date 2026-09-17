@@ -11,76 +11,84 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /*
- * The palette is the launcher mark's own, read off the icon pack (split-assets/NoteTag): the six
- * colours the art is drawn with, plus two tints derived from them and labelled as such. Nothing
- * here is invented — an app that looks like its icon is the whole of the design (owner,
- * 2026-09-17).
+ * The palette is the launcher mark's own, read off the icon pack (split-assets/NoteTag) after the
+ * 2026-09-17 colour revision: a variation of Joplin's blue, deliberately not a copy of it, and
+ * with nothing green or lime in it. Nothing here is invented — an app that looks like its icon is
+ * the whole of the design (owner, 2026-09-17).
  */
 
-/** The pack's warm ground. */
-val Ivory = Color(0xFFF7F5EF)
+/** The pack's cool near-white ground: the tile, and every screen behind everything. */
+val Frost = Color(0xFFF4F7FB)
 
-/** Ivory lifted one step: the card surface, so a card reads as paper on the ground. */
-val Paper = Color(0xFFFCFAF5)
+/** True white, as the note in the mark: the card surface, so a card reads as paper on the ground. */
+val Paper = Color(0xFFFFFFFF)
 
 /** The tag body in the mark, and the only accent the app has. */
-val Amber = Color(0xFFE2A633)
+val Azure = Color(0xFF1F5FA8)
 
-/** The dark warm brown behind amber: text on an amber field. */
-val Umber = Color(0xFF4A3424)
+/** The note's fold: the deeper blue behind azure, and text on a pale blue field. */
+val Navy = Color(0xFF0B3A6E)
 
-/** The mark's line work: every sentence is this colour on ivory. */
-val Charcoal = Color(0xFF1B1F22)
+/** The mark's darkest tone: every sentence is this colour on frost. */
+val Slate = Color(0xFF2B3038)
 
-/** The quiet warm grey: outlines and the second line of anything. */
-val WarmGrey = Color(0xFF8C8B86)
+/** The note's ruled lines: outlines and chip borders. */
+val Mist = Color(0xFF8A96A6)
 
-/** Derived: Amber at 30 % over Ivory — the chip ground. */
-val AmberTint = Color(0xFFF5E3B8)
+/** Derived: Mist two steps deeper, so quiet text still carries (4.9:1 on Frost). */
+val Steel = Color(0xFF5F6B7A)
 
-/** Derived: Charcoal lifted one step — the card surface in the dark. */
-val Coal = Color(0xFF262B2F)
+/** The pack's light blue: a highlight here, and the accent in the dark. */
+val Sky = Color(0xFF5DA6F5)
+
+/** Derived: Sky at 25 % over Frost — the chip ground. */
+val SkyTint = Color(0xFFD7E6F9)
+
+/** Derived: Slate lifted one step — the card surface in the dark. */
+val Ink = Color(0xFF363C46)
 
 private val LightScheme = lightColorScheme(
-    primary = Amber,
-    onPrimary = Charcoal,
-    primaryContainer = AmberTint,
-    onPrimaryContainer = Umber,
-    secondary = Amber,
-    onSecondary = Charcoal,
-    secondaryContainer = AmberTint,
-    onSecondaryContainer = Umber,
-    tertiary = Umber,
-    onTertiary = Ivory,
-    background = Ivory,
-    onBackground = Charcoal,
-    surface = Ivory,
-    onSurface = Charcoal,
+    primary = Azure,
+    onPrimary = Paper,
+    primaryContainer = SkyTint,
+    onPrimaryContainer = Navy,
+    secondary = Azure,
+    onSecondary = Paper,
+    secondaryContainer = SkyTint,
+    onSecondaryContainer = Navy,
+    tertiary = Navy,
+    onTertiary = Paper,
+    tertiaryContainer = Sky,
+    onTertiaryContainer = Navy,
+    background = Frost,
+    onBackground = Slate,
+    surface = Frost,
+    onSurface = Slate,
     surfaceVariant = Paper,
-    onSurfaceVariant = WarmGrey,
+    onSurfaceVariant = Steel,
     surfaceContainerHigh = Paper,
-    outline = WarmGrey,
+    outline = Mist,
 )
 
 private val DarkScheme = darkColorScheme(
-    primary = Amber,
-    onPrimary = Charcoal,
-    primaryContainer = Umber,
-    onPrimaryContainer = AmberTint,
-    secondary = Amber,
-    onSecondary = Charcoal,
-    secondaryContainer = Umber,
-    onSecondaryContainer = AmberTint,
-    tertiary = AmberTint,
-    onTertiary = Charcoal,
-    background = Charcoal,
-    onBackground = Ivory,
-    surface = Charcoal,
-    onSurface = Ivory,
-    surfaceVariant = Coal,
-    onSurfaceVariant = WarmGrey,
-    surfaceContainerHigh = Coal,
-    outline = WarmGrey,
+    primary = Azure,
+    onPrimary = Paper,
+    primaryContainer = Navy,
+    onPrimaryContainer = SkyTint,
+    secondary = Azure,
+    onSecondary = Paper,
+    secondaryContainer = Navy,
+    onSecondaryContainer = SkyTint,
+    tertiary = Sky,
+    onTertiary = Slate,
+    background = Slate,
+    onBackground = Frost,
+    surface = Slate,
+    onSurface = Frost,
+    surfaceVariant = Ink,
+    onSurfaceVariant = Mist,
+    surfaceContainerHigh = Ink,
+    outline = Mist,
 )
 
 /**

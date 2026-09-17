@@ -2,7 +2,7 @@ package com.loosecannon.notetag.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -24,19 +24,23 @@ import com.loosecannon.notetag.R
 @Composable
 fun Watermarked(modifier: Modifier = Modifier, alpha: Float = 0.07f, content: @Composable () -> Unit) {
     Box(modifier = modifier.clipToBounds()) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.align(Alignment.BottomEnd).size(260.dp).alpha(alpha),
-        )
-        Box(Modifier.fillMaxSize()) { content() }
+        // The mark must not size the box: it lives in an overlay that matches the content's size
+        // and spills past the bottom-end edge, where clipToBounds trims it (fixed after review).
+        Box(Modifier.matchParentSize()) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.align(Alignment.BottomEnd).size(260.dp).offset(x = 48.dp, y = 56.dp).alpha(alpha),
+            )
+        }
+        content()
     }
 }
 
 /**
- * How faint the mark is on the surface it is sitting on: the mark is charcoal-and-amber, so on Coal
- * it needs a touch more than on Ivory. Read off the theme's own surface rather than the system
+ * How faint the mark is on the surface it is sitting on: the mark is azure-and-white, so on Ink it
+ * needs a touch more than on Frost. Read off the theme's own surface rather than the system
  * setting, so a composition themed light inside a dark phone still gets the light value.
  */
 @Composable

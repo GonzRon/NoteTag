@@ -29,9 +29,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The ground colour runs under the system bars: the ivory (or, in the dark, the charcoal)
-        // is the app's, and a grey band across the top would not be. Scaffold pads the content
-        // back off the bars.
+        // The ground colour runs under the system bars: the frost (or, in the dark, the slate) is
+        // the app's, and a grey band across the top would not be. Scaffold pads the content back
+        // off the bars.
         enableEdgeToEdge()
         // A recreated activity already has its screen in the view model; re-deriving it from the
         // launch intent would drag the user back to a share they have already finished with.
