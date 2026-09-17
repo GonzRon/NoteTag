@@ -20,8 +20,15 @@ fun interface AtomicReplace { fun replace(target: File, bytes: ByteArray) }
 object FsyncRename : AtomicReplace {
     override fun replace(target: File, bytes: ByteArray) {
         val tmp = File(target.parentFile, target.name + ".tmp")
-        FileOutputStream(tmp).use { out -> out.write(bytes); out.fd.sync() }
-        Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        var moved = false
+        try {
+            FileOutputStream(tmp).use { out -> out.write(bytes); out.fd.sync() }
+            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            moved = true
+        } finally {
+            // A failed write, sync or move must not leave <name>.tmp behind for the next one.
+            if (!moved) tmp.delete()
+        }
     }
 }
 

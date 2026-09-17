@@ -119,6 +119,28 @@ class JsonFileTagStoreTest {
         assertTrue(tempDir.listFiles { f -> f.name.endsWith(".tmp") }.isNullOrEmpty())
     }
 
+    @Test fun aFailedMoveDeletesTheTempFileAndLeavesTheTargetAlone() {
+        // A non-empty directory where the store file belongs makes the atomic move fail *after*
+        // the temp file has been written and synced -- the one window in which a leftover
+        // <name>.tmp was possible. (chmod is no use here: these tests can run as root.)
+        val target = File(tempDir, "tags.json")
+        target.mkdirs()
+        File(target, "kept").writeText("previous content")
+
+        assertFailsWith<IOException> { FsyncRename.replace(target, """{"version":1}""".toByteArray()) }
+
+        assertTrue(tempDir.listFiles { f -> f.name.endsWith(".tmp") }.isNullOrEmpty())
+        assertEquals("previous content", File(target, "kept").readText())
+    }
+
+    @Test fun aZeroByteStoreFileThrowsStoreCorruptNotAnEmptyStore() = runTest {
+        val file = storeFile()
+        file.writeBytes(ByteArray(0))
+        val store = JsonFileTagStore(file)
+
+        assertFailsWith<StoreCorrupt> { store.get("anything") }
+    }
+
     @Test fun concurrentPutsFromTwoCoroutinesBothLand() = runTest {
         val store = JsonFileTagStore(storeFile())
 
