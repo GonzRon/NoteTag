@@ -1,9 +1,9 @@
 package com.loosecannon.notetag.core.write
 
+import com.loosecannon.nfc.tagcore.NdefRecordData
+import com.loosecannon.nfc.tagcore.NdefSize
 import com.loosecannon.notetag.core.links.LinkCheck
 import com.loosecannon.notetag.core.links.LinkLaunchPolicy
-import com.loosecannon.notetag.core.nfc.NdefRecordData
-import com.loosecannon.notetag.core.nfc.NdefSize
 import com.loosecannon.notetag.core.tag.JoplinId
 import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent

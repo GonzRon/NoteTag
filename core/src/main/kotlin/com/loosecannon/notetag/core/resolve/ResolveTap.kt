@@ -1,8 +1,8 @@
 package com.loosecannon.notetag.core.resolve
 
+import com.loosecannon.nfc.tagcore.NdefRecordData
 import com.loosecannon.notetag.core.links.LinkCheck
 import com.loosecannon.notetag.core.links.LinkLaunchPolicy
-import com.loosecannon.notetag.core.nfc.NdefRecordData
 import com.loosecannon.notetag.core.nfc.OverwriteWording
 import com.loosecannon.notetag.core.store.TagStore
 import com.loosecannon.notetag.core.tag.JoplinId

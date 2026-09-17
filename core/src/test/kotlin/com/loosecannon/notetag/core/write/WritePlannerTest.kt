@@ -1,7 +1,7 @@
 package com.loosecannon.notetag.core.write
 
-import com.loosecannon.notetag.core.nfc.NdefSize
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.NdefSize
+import com.loosecannon.nfc.tagcore.TagIdentity
 import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent
 import java.util.UUID
@@ -47,5 +47,14 @@ class WritePlannerTest {
     @Test fun aRejectedSchemeIsRefusedBeforeAnyEncoding() {
         assertIs<WritePlan.Refused>(WritePlanner.plan("javascript:alert(1)", 1000, codec))
         assertIs<WritePlan.Refused>(WritePlanner.plan("no link here at all", 1000, codec))
+    }
+    /**
+     * The library's `NdefSize` refuses an empty list; a `Refused` plan's records are always empty
+     * (`emptyList()`), so sizing one before returning would throw instead of returning cleanly.
+     * A refused plan is returned before any size is computed.
+     */
+    @Test fun aRefusedPlanIsNeverSized() {
+        val p = assertIs<WritePlan.Refused>(WritePlanner.plan("no link here at all", 1000, codec))
+        assertEquals(emptyList(), p.records)
     }
 }

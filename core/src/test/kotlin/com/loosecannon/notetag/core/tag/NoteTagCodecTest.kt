@@ -1,8 +1,9 @@
 package com.loosecannon.notetag.core.tag
 
-import com.loosecannon.notetag.core.nfc.NdefEnvelope
-import com.loosecannon.notetag.core.nfc.NdefRecordData
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.NdefEnvelope
+import com.loosecannon.nfc.tagcore.NdefRecordData
+import com.loosecannon.nfc.tagcore.NdefSize
+import com.loosecannon.nfc.tagcore.TagIdentity
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -25,6 +26,10 @@ class NoteTagCodecTest {
         assertContentEquals(byteArrayOf(0x01, 0x01, 0x00), records[0].payload.copyOfRange(0, 3))
         assertEquals(3 + 27 + 19, 3 + records[0].type.size + records[0].payload.size)   // 49 B message (target §4.9)
         assertEquals(NoteTagContent.JoplinNote(id), codec.decode(records))
+    }
+    @Test fun aJoplinNoteMessageIsFortyNineBytes() {
+        val records = codec.encode(NoteTagContent.JoplinNote(id))
+        assertEquals(49, NdefSize.serialisedSize(records))
     }
     @Test fun aMixedCaseIdRoundTripsLowerCase() {
         val mixed = "0123456789ABCDEFfedcba9876543210"

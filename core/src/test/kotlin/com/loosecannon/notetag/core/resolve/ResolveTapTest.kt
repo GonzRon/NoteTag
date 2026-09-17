@@ -1,7 +1,7 @@
 package com.loosecannon.notetag.core.resolve
 
-import com.loosecannon.notetag.core.nfc.NdefRecordData
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.NdefRecordData
+import com.loosecannon.nfc.tagcore.TagIdentity
 import com.loosecannon.notetag.core.store.JsonFileTagStore
 import com.loosecannon.notetag.core.store.TagEntry
 import com.loosecannon.notetag.core.tag.JoplinId
