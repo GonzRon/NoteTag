@@ -1,5 +1,16 @@
 package com.loosecannon.notetag.write
 
+import android.util.Log
+import com.loosecannon.nfc.tagcore.NdefSize
+import com.loosecannon.nfc.tagcore.android.CapacityVerdict
+import com.loosecannon.nfc.tagcore.android.TagHandle
+import com.loosecannon.nfc.tagcore.android.TagInspection
+import com.loosecannon.nfc.tagcore.android.TagIo
+import com.loosecannon.nfc.tagcore.android.TagRead
+import com.loosecannon.nfc.tagcore.android.WriteResult
+import com.loosecannon.nfc.tagcore.android.WriteRoute
+import com.loosecannon.nfc.tagcore.android.fit
+import com.loosecannon.nfc.tagcore.android.route
 import com.loosecannon.notetag.core.nfc.OverwriteWording
 import com.loosecannon.notetag.core.store.TagEntry
 import com.loosecannon.notetag.core.store.TagStore
@@ -7,9 +18,6 @@ import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent
 import com.loosecannon.notetag.core.write.WritePlan
 import com.loosecannon.notetag.core.write.WritePlanner
-import com.loosecannon.notetag.nfc.TagHandle
-import com.loosecannon.notetag.nfc.TagIo
-import com.loosecannon.notetag.nfc.WriteResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -44,16 +52,9 @@ class NoteTagWriteController(
     private val store: TagStore,
     private val sharedText: String?,
     private val scope: CoroutineScope,
-    /**
-     * Where a mapping's cleanup runs. It outlives [scope] on purpose: a screen that is torn down
-     * by the system disposes after its view model has been cleared, and the undo of a persisted
-     * LOCAL_REF mapping must not be the thing that gets cancelled.
-     */
+    /** Where a mapping's cleanup runs; outlives [scope] on purpose (a torn-down screen must still undo a persisted mapping). */
     private val cleanupScope: CoroutineScope = scope,
-    /**
-     * Where the three blocking [TagIo] calls run. [scope] is the screen's, and a screen's scope
-     * dispatches on the main thread; tag I/O blocks for as long as the chip takes.
-     */
+    /** Where the blocking [TagIo] calls run; a screen's scope dispatches on the main thread. */
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
     private val newUuid: () -> UUID = UUID::randomUUID,
@@ -67,14 +68,14 @@ class NoteTagWriteController(
     /** Consent is for THIS existing content and THIS plan kind (invariant 10). */
     private class Pending(val plan: WritePlan, val existing: NoteTagContent, val consented: Boolean)
 
-    /** Runs on the reader-mode binder thread; every state change is a flow emission. */
+    /** Runs on the reader-mode binder thread; every state change is a flow emission (invariant 11). */
     fun onTag(tag: TagHandle) {
-        if (done || !busy.compareAndSet(false, true)) return          // single-flight (invariant 11)
+        if (done || !busy.compareAndSet(false, true)) return
         scope.launch {
             try { handle(tag) }
-            // One sentence, never the platform's: a TagLostException's message is not English
-            // and not the owner's business (review round, 2026-09-17).
-            catch (t: Throwable) { _state.value = WriteState.Error("Could not read the tag. Hold it still and try again.") }
+            catch (t: CancellationException) { throw t }
+            // One sentence, never the platform's; the exception goes to the log, not the user (R4).
+            catch (t: Throwable) { Log.w(TAG, "inspect failed", t); _state.value = WriteState.Error("Could not read the tag. Hold it still and try again.") }
             finally { busy.set(false) }
         }
     }
@@ -82,23 +83,50 @@ class NoteTagWriteController(
     private suspend fun handle(tag: TagHandle) {
         val inspection = withContext(ioDispatcher) { tagIo.inspect(tag) }
             ?: run { _state.value = WriteState.Error("This tag type is not supported."); return }
-        if (!inspection.writable) { _state.value = WriteState.Error("This tag is read-only."); return }
-        val maxSize = if (inspection.needsFormat) UNMEASURED else inspection.maxSize
-        val plan = WritePlanner.plan(sharedText, maxSize, codec, newUuid)
+        // Route first, with no message size: a tag that needs formatting has no capacity and gets
+        // no plan, no uuid and no mapping (R1); a read-only tag is refused before capacity matters.
+        val writable = when (val r = inspection.route()) {
+            WriteRoute.Format -> { format(tag); return }
+            WriteRoute.ReadOnly -> { _state.value = WriteState.Error("This tag is read-only."); return }
+            is WriteRoute.Writable -> r
+        }
+        val plan = WritePlanner.plan(sharedText, writable.maxSize, codec, newUuid)
         if (plan is WritePlan.Refused) { _state.value = WriteState.Refused(plan.reason); return }
+        when (val v = writable.fit(NdefSize.serialisedSize(plan.records))) {
+            is CapacityVerdict.TooSmall -> { _state.value = WriteState.Error("This tag is too small: it holds ${v.maxSize} bytes and this needs ${v.needed}."); return }
+            CapacityVerdict.Write -> Unit
+        }
+        val existing = existingOn(inspection)
         val prior = pending
         pending = null
         val reasons = listOfNotNull(
-            OverwriteWording.reason(inspection.existing, contentOf(plan)),
+            OverwriteWording.reason(existing, contentOf(plan)),
             if (plan is WritePlan.DeviceBound) OverwriteWording.DEVICE_BOUND else null,   // the warning BEFORE the write
         )
-        val sameQuestion = prior?.consented == true && prior.existing == inspection.existing && prior.plan::class == plan::class
+        val sameQuestion = prior?.consented == true && prior.existing == existing && prior.plan::class == plan::class
         if (reasons.isNotEmpty() && !sameQuestion) {
-            pending = Pending(plan, inspection.existing, consented = false)
+            pending = Pending(plan, existing, consented = false)
             _state.value = WriteState.Confirm(reasons, action = if (reasons.first() != OverwriteWording.DEVICE_BOUND) "Write over it" else "Write")
             return
         }
         write(tag, plan)
+    }
+
+    /** What the tag holds, in NoteTag's terms. Unreadable NDEF is unreadable — a question, never "empty" (C1). */
+    private fun existingOn(inspection: TagInspection): NoteTagContent = when (val read = inspection.read) {
+        is TagRead.Readable -> codec.decode(read.records)
+        is TagRead.Unreadable -> { read.cause?.let { Log.w(TAG, "tag NDEF unreadable: ${read.reason}", it) }; NoteTagContent.Malformed(read.reason) }
+    }
+
+    /** `format(null)`: NDEF-capable, empty, unlocked; the link is planned and written on the next tap (R1, R3). */
+    private suspend fun format(tag: TagHandle) {
+        when (val r = withContext(ioDispatcher) { tagIo.format(tag) }) {
+            WriteResult.Formatted -> _state.value = WriteState.Waiting("Formatted the tag. Hold it to the phone again to write the link.")
+            is WriteResult.Failed -> { r.cause?.let { Log.w(TAG, "format failed: ${r.reason}", it) }; _state.value = WriteState.Error("Could not format the tag. Hold it still and try again.") }
+            WriteResult.Unsupported -> _state.value = WriteState.Error("This tag type is not supported.")
+            is WriteResult.Written, is WriteResult.TooSmall, WriteResult.ReadOnly, is WriteResult.VerifyMismatch ->
+                _state.value = WriteState.Error("Could not format the tag. Hold it still and try again.")
+        }
     }
 
     /** The user pressed Write / Write over it: remember it for the next tap of the same tag (the handle went stale under the sheet). */
@@ -110,30 +138,22 @@ class NoteTagWriteController(
 
     /**
      * The LOCAL_REF sequence (target §4.9): persist first, UNCONFIRMED (writtenAt = null); confirm
-     * only on a verified Written; retain — still unconfirmed, still resolvable — on any ambiguous
-     * failure, so a tag that may exist resolves and a tag we cannot vouch for is not shown as written.
+     * only on a verified Written; retain — still unconfirmed, still resolvable — when the write may
+     * have landed; remove only when the library says nothing reached the tag (`attempted == false`,
+     * or a pre-write refusal).
      */
     private suspend fun write(tag: TagHandle, plan: WritePlan) {
         _state.value = WriteState.Writing
         val entry = entryFor(plan)                                       // writtenAt == null for every plan
         if (plan is WritePlan.DeviceBound) {
             try { store.put(entry) }                                     // (a) durably stored BEFORE the write
-            catch (t: CancellationException) { throw t }                  // a cancelled screen is not a store failure
-            catch (t: Throwable) { _state.value = WriteState.Error("Could not save the link on this phone; nothing was written to the tag."); return }
+            catch (t: CancellationException) { throw t }
+            catch (t: Throwable) { Log.w(TAG, "store.put failed", t); _state.value = WriteState.Error("Could not save the link on this phone; nothing was written to the tag."); return }
         }
         when (val r = withContext(ioDispatcher) { tagIo.write(tag, plan.records, lock = false) }) {
-            // An UNVERIFIED Written is a format, not a write. The interim adapter's
-            // NdefFormatable path returns Written(verified = false): `Ndef.get(tag)` stays null
-            // until the tag is rediscovered, so measuring, the capacity check, the write and the
-            // verify are all the NEXT tap's job. Nothing is confirmed, and `done` stays false so
-            // that tap is not dropped; a DeviceBound mapping stays persisted-unconfirmed, exactly
-            // as for any other ambiguous outcome (rule b).
-            is WriteResult.Written -> if (!r.verified) {
-                _state.value = WriteState.Waiting("Formatted the tag. Hold it to the phone again to finish writing the link.")
-            } else {
+            // A Written is verified by construction (there is no "written but unverified" success).
+            is WriteResult.Written -> {
                 val at = clock()
-                // A verified write is recorded even if the screen is already leaving; a store
-                // failure still cannot escape.
                 withContext(NonCancellable) {
                     if (plan is WritePlan.DeviceBound) runCatching { store.confirm(entry.uuid, at) }   // the read-back is the proof
                     else runCatching { store.put(entry.copy(writtenAt = at)) }                          // convenience only: never load-bearing
@@ -141,27 +161,28 @@ class NoteTagWriteController(
                 done = true
                 _state.value = WriteState.Written(entry.copy(writtenAt = at), deviceBound = plan is WritePlan.DeviceBound)
             }
-            // pre-write rejections: no bytes can have reached the tag, so the mapping may go
+            // pre-write refusals: no bytes can have reached the tag, so the mapping may go
             is WriteResult.TooSmall -> { forget(plan); _state.value = WriteState.Error("This tag is too small: it holds ${r.maxSize} bytes and this needs ${r.needed}.") }
             WriteResult.ReadOnly -> { forget(plan); _state.value = WriteState.Error("This tag is read-only.") }
             WriteResult.Unsupported -> { forget(plan); _state.value = WriteState.Error("This tag type is not supported.") }
+            WriteResult.Formatted -> { forget(plan); _state.value = WriteState.Error("Could not write the tag. Hold it still and try again.") }
             // ambiguous: the write may have landed. RETAIN (rule b).
             is WriteResult.VerifyMismatch -> _state.value = WriteState.Error("The tag did not read back what was written. Try again with the same tag.")
-            is WriteResult.Failed -> _state.value = WriteState.Error("Writing failed (${r.reason}). If the tag was touched, it may already hold the link; try again with the same tag.")
+            is WriteResult.Failed -> {
+                r.cause?.let { Log.w(TAG, "write failed: ${r.reason}", it) }
+                if (!r.attempted) {                                       // the library refused before any I/O: nothing changed
+                    forget(plan)
+                    _state.value = WriteState.Error("Nothing was written (${r.reason}). Hold the tag still and try again.")
+                } else {                                                  // the radio was reached: retain, unconfirmed
+                    _state.value = WriteState.Error("Writing may not have finished (${r.reason}). If the tag was touched it may already hold the link; hold the same tag again.")
+                }
+            }
         }
     }
 
-    /**
-     * Leaving the screen before any write: nothing can have reached a tag, so a pending LOCAL_REF
-     * mapping may go. It goes on [cleanupScope], which is not the screen's: a back press that
-     * finishes the activity disposes the composition after the view model is cleared.
-     */
+    /** Leaving the screen before any write: a pending LOCAL_REF mapping may go, on [cleanupScope]. */
     fun abandon(): Job? { val p = pending; pending = null; return p?.let { cleanupScope.launch { forget(it.plan) } } }
 
-    /**
-     * Cleanup finishes even while the scope is being torn down: a bare `runCatching` would swallow
-     * the CancellationException and leave the mapping behind. A store failure still cannot escape.
-     */
     private suspend fun forget(plan: WritePlan) {
         if (plan is WritePlan.DeviceBound) withContext(NonCancellable) {
             runCatching { store.remove(plan.content.uuid.toString()) }
@@ -181,8 +202,5 @@ class NoteTagWriteController(
         is WritePlan.Refused -> error("refused plans are not written")
     }
 
-    private companion object {
-        /** A formatable tag has no measured size until the second tap; plan as if unlimited so the URI is attempted (the write itself reports TooSmall). */
-        const val UNMEASURED = Int.MAX_VALUE
-    }
+    private companion object { const val TAG = "NoteTagWriteController" }
 }

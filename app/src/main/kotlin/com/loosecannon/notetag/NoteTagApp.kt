@@ -1,13 +1,13 @@
 package com.loosecannon.notetag
 
 import android.app.Application
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.TagIdentity
+import com.loosecannon.nfc.tagcore.android.RealTagIo
+import com.loosecannon.nfc.tagcore.android.TagIo
 import com.loosecannon.notetag.core.resolve.ResolveTap
 import com.loosecannon.notetag.core.store.JsonFileTagStore
 import com.loosecannon.notetag.core.store.TagStore
 import com.loosecannon.notetag.core.tag.NoteTagCodec
-import com.loosecannon.notetag.nfc.RealTagIo
-import com.loosecannon.notetag.nfc.TagIo
 import com.loosecannon.notetag.write.NoteTagWriteController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,7 +38,8 @@ class AppGraph(app: Application) {
     )
     val codec = NoteTagCodec(identity)
     val store: TagStore = JsonFileTagStore(File(app.filesDir, "tags.json"))
-    val tagIo: TagIo = RealTagIo(codec)
+    /** The library's seam over `TagWriter`; it is product-neutral, so there is one of it. */
+    val tagIo: TagIo = RealTagIo
     val resolveTap = ResolveTap(codec, store)
 
     /**

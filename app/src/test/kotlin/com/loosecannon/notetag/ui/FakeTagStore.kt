@@ -5,7 +5,8 @@ import com.loosecannon.notetag.core.store.TagStore
 
 /**
  * The store, in memory, honouring the one part of its contract the list screen depends on:
- * [list] is confirmed writes only, newest first (`JsonFileTagStore` does the same over a file).
+ * [list] is confirmed writes only, newest first (`JsonFileTagStore` does the same over a file);
+ * [all] is the unfiltered view, which the store interface does not offer and a test needs.
  * [listCalls] is how a test sees that arriving at the list re-read the store.
  */
 class FakeTagStore(initial: List<TagEntry> = emptyList()) : TagStore {
@@ -23,6 +24,12 @@ class FakeTagStore(initial: List<TagEntry> = emptyList()) : TagStore {
     }
 
     override suspend fun get(uuid: String): TagEntry? = entries.firstOrNull { it.uuid == uuid }
+
+    /**
+     * Every entry, confirmed or not, in insertion order: [list] hides the unconfirmed ones, so
+     * "nothing was persisted" is a claim only this view can make.
+     */
+    fun all(): List<TagEntry> = entries.toList()
 
     override suspend fun list(): List<TagEntry> {
         listCalls++

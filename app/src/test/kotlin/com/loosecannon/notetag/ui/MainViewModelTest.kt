@@ -1,9 +1,9 @@
 package com.loosecannon.notetag.ui
 
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.TagIdentity
+import com.loosecannon.nfc.tagcore.android.WriteResult
 import com.loosecannon.notetag.core.store.TagEntry
 import com.loosecannon.notetag.core.tag.NoteTagCodec
-import com.loosecannon.notetag.nfc.WriteResult
 import com.loosecannon.notetag.write.FakeTagIo
 import com.loosecannon.notetag.write.NoteTagWriteController
 import kotlinx.coroutines.Dispatchers

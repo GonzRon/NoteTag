@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.os.Bundle
+import com.loosecannon.nfc.tagcore.android.ndefRecords
 import com.loosecannon.notetag.MainActivity
 import com.loosecannon.notetag.NoteTagApp
 import com.loosecannon.notetag.core.resolve.TapOutcome
@@ -26,8 +27,8 @@ import kotlinx.coroutines.launch
  *
  * - **It reads three things and ignores the rest** (invariant 12): the action, the first message in
  *   `EXTRA_NDEF_MESSAGES`, and — only through the manifest filter — the data URI. It never reads
- *   `EXTRA_TAG` and never calls `NdefBridge`'s tag-handle accessor: a live tag handle is a
- *   write-path capability, and the read path has no business holding one.
+ *   `EXTRA_TAG` and never calls the library's accessor for it: a live tag handle is a write-path
+ *   capability, and the read path has no business holding one.
  * - **Parsing is guarded.** This activity is exported, so any app can aim any extras at it and
  *   unparcelling whatever it is handed can throw. A hostile or simply wrong bundle is "nothing to
  *   resolve", not a crash on the way up (the shape `MainActivity.screenFrom` already uses).

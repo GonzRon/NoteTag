@@ -1,10 +1,11 @@
 package com.loosecannon.notetag.nfc
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.loosecannon.nfc.tagcore.NdefRecordData
+import com.loosecannon.nfc.tagcore.NdefSize
+import com.loosecannon.nfc.tagcore.TagIdentity
+import com.loosecannon.nfc.tagcore.android.toNdefMessage
 import com.loosecannon.notetag.BuildConfig
-import com.loosecannon.notetag.core.nfc.NdefRecordData
-import com.loosecannon.notetag.core.nfc.NdefSize
-import com.loosecannon.notetag.core.nfc.TagIdentity
 import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent
 import org.junit.Assert.assertEquals
@@ -17,7 +18,7 @@ import org.junit.runner.RunWith
  * fits a tag; if that number ever differs from `NdefMessage.toByteArray().size`, the planner picks
  * the wrong kind and a tag is written that cannot hold what the owner shared.
  *
- * `NdefSizeTest` in `:core` proves the arithmetic against itself. Only this class can prove it
+ * `NdefSizeTest` in `:nfc-core` proves the arithmetic against itself. Only this class can prove it
  * against Android, and it is cheap: four messages, one of them across the short-record boundary at
  * 256 payload bytes, where the length field grows from one byte to four.
  *

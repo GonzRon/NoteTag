@@ -1,7 +1,7 @@
 package com.loosecannon.notetag.nfc
 
 import com.loosecannon.notetag.BuildConfig
-import com.loosecannon.notetag.core.nfc.TagIdentity
+import com.loosecannon.nfc.tagcore.TagIdentity
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

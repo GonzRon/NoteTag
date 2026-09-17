@@ -29,9 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.loosecannon.nfc.tagcore.android.NfcReaderModeSession
+import com.loosecannon.nfc.tagcore.android.NfcTagHandle
 import com.loosecannon.notetag.core.nfc.OverwriteWording
-import com.loosecannon.notetag.nfc.NfcReaderModeSession
-import com.loosecannon.notetag.nfc.NfcTagHandle
 import com.loosecannon.notetag.write.NoteTagWriteController
 import com.loosecannon.notetag.write.WriteState
 

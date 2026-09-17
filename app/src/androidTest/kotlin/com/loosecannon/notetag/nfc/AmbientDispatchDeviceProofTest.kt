@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
+import com.loosecannon.nfc.tagcore.android.toNdefMessage
 import com.loosecannon.notetag.BuildConfig
 import com.loosecannon.notetag.core.tag.JoplinId
 import com.loosecannon.notetag.core.tag.NoteTagContent

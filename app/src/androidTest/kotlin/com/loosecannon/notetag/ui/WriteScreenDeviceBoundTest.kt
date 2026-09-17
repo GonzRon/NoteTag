@@ -8,14 +8,15 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
+import com.loosecannon.nfc.tagcore.NdefSize
+import com.loosecannon.nfc.tagcore.TagIdentity
+import com.loosecannon.nfc.tagcore.android.TagInspection
+import com.loosecannon.nfc.tagcore.android.TagRead
+import com.loosecannon.nfc.tagcore.android.WriteResult
 import com.loosecannon.notetag.BuildConfig
-import com.loosecannon.notetag.core.nfc.NdefSize
-import com.loosecannon.notetag.core.nfc.TagIdentity
 import com.loosecannon.notetag.core.store.JsonFileTagStore
 import com.loosecannon.notetag.core.tag.NoteTagCodec
 import com.loosecannon.notetag.core.tag.NoteTagContent
-import com.loosecannon.notetag.nfc.TagInspection
-import com.loosecannon.notetag.nfc.WriteResult
 import com.loosecannon.notetag.write.NoteTagWriteController
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -71,8 +72,7 @@ class WriteScreenDeviceBoundTest {
 
     private fun emptyWritableTag(maxSize: Int) = TagInspection(
         uid = "aabbccdd",
-        existing = NoteTagContent.Empty,
-        existingRecords = emptyList(),
+        read = TagRead.Readable(emptyList()),
         maxSize = maxSize,
         writable = true,
         needsFormat = false,
@@ -85,7 +85,7 @@ class WriteScreenDeviceBoundTest {
     @Test fun aTagTooSmallForTheLinkWarnsBeforeItIsWrittenAndSaysSoAfterwards() {
         val io = FakeTagIo(
             emptyWritableTag(maxSize = uriSize() - 1),
-            WriteResult.Written(readBack = emptyList(), bytes = 0, verified = true, locked = false),
+            WriteResult.Written(readBack = emptyList(), bytes = 0, locked = false),
         )
         val controller = controllerOver(io)
         rule.setContent { NoteTagTheme { WriteScreen(controller, sharedText = link, onDone = {}) } }
@@ -113,7 +113,7 @@ class WriteScreenDeviceBoundTest {
     @Test fun aTagThatFitsTheLinkIsWrittenWithoutTheWarning() {
         val io = FakeTagIo(
             emptyWritableTag(maxSize = uriSize()),
-            WriteResult.Written(readBack = emptyList(), bytes = 0, verified = true, locked = false),
+            WriteResult.Written(readBack = emptyList(), bytes = 0, locked = false),
         )
         val controller = controllerOver(io)
         rule.setContent { NoteTagTheme { WriteScreen(controller, sharedText = link, onDone = {}) } }
