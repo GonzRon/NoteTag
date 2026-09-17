@@ -181,4 +181,23 @@ class AmbientDispatchDeviceProofTest {
         rule.awaitText(sentence)
         rule.onNodeWithText(sentence).assertIsDisplayed()
     }
+
+    /**
+     * The filter matches on the action and the data URI, so an intent carrying both but **no**
+     * `EXTRA_NDEF_MESSAGES` resolves to us and arrives with nothing to read. That is the
+     * trampoline's null-records path, and it is the same sentence a hostile bundle gets: one
+     * sentence on the list, no crash, no launch.
+     */
+    @Test fun ourFilterWithNoNdefMessagesSaysThereIsNothingToResolve() {
+        val sentence = "Nothing to resolve."
+
+        context.startActivity(
+            Intent(NfcAdapter.ACTION_NDEF_DISCOVERED)
+                .setData(Uri.parse("vnd.android.nfc://ext/$externalType"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+
+        rule.awaitText(sentence)
+        rule.onNodeWithText(sentence).assertIsDisplayed()
+    }
 }

@@ -8,6 +8,7 @@ import com.loosecannon.notetag.MainActivity
 import com.loosecannon.notetag.NoteTagApp
 import com.loosecannon.notetag.core.resolve.TapOutcome
 import com.loosecannon.notetag.links.LinkLauncher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -68,7 +69,11 @@ class NfcDispatchActivity : Activity() {
         val graph = (application as NoteTagApp).graph
         scope.launch {
             val outcome = runCatching { graph.resolveTap.resolve(records) }
-                .getOrElse { TapOutcome.Message("This tag could not be read.") }
+                .getOrElse {
+                    // A cancelled scope is not a bad tag: let cancellation finish cancelling.
+                    if (it is CancellationException) throw it
+                    TapOutcome.Message("This tag could not be read.")
+                }
             when (outcome) {
                 is TapOutcome.Open -> {
                     if (LinkLauncher.open(this@NfcDispatchActivity, outcome.uri)) {
