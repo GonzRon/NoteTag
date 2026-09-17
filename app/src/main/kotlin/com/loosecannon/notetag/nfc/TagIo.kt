@@ -1,4 +1,4 @@
-// Interim copy of ServiceTag's app/src/main/kotlin/com/loosecannon/servicetag/ui/scan/TagWriteController.kt (lines 32-65, dc1bb1c lineage); Phase G replaces it with nfc-tag-core.
+// Interim copy of ServiceTag's app/src/main/kotlin/com/loosecannon/servicetag/ui/scan/TagWriteController.kt (lines 27-65, dc1bb1c lineage); Phase G replaces it with nfc-tag-core.
 package com.loosecannon.notetag.nfc
 
 import android.nfc.Tag

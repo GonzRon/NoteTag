@@ -67,6 +67,10 @@ class NoteTagWriteControllerTest {
     private fun retainedMapping() =
         TagEntry(REF_KEY, "LOCAL_REF", LONG_URI, LONG_URI, writtenAt = null)
 
+    /** Another phone-bound tag this phone wrote: `forget` must remove its own mapping and no other. */
+    private fun siblingMapping() =
+        TagEntry(SIBLING_KEY, "LOCAL_REF", SIBLING_URI, SIBLING_URI, writtenAt = null)
+
     private fun controller(io: TagIo, sharedText: String?, scope: CoroutineScope, tagStore: TagStore = store) =
         NoteTagWriteController(io, codec, tagStore, sharedText, scope, clock = { WRITTEN_AT }, newUuid = { REF })
 
@@ -149,6 +153,8 @@ class NoteTagWriteControllerTest {
         val work = SupervisorJob()
         val c = controller(io, LONG_URI, this + work)
 
+        store.put(siblingMapping())          // another tag's mapping, which must survive all of this
+
         // No tap at all: nothing was remembered, so there is nothing to undo.
         assertNull(c.abandon())
         assertNull(store.get(REF_KEY))
@@ -160,6 +166,7 @@ class NoteTagWriteControllerTest {
         assertTrue(c.state.value is WriteState.Confirm)
         c.abandon(); settle(work)
         assertNull(store.get(REF_KEY))
+        assertEquals(SIBLING_URI, store.entry(SIBLING_KEY).target)      // only its own mapping went
         assertEquals(0, io.writeAttempts)
 
         // cancel() undoes it the same way, and says so.
@@ -167,8 +174,20 @@ class NoteTagWriteControllerTest {
         c.onTag(FakeHandle); settle(work)
         c.cancel(); settle(work)
         assertNull(store.get(REF_KEY))
+        assertEquals(SIBLING_URI, store.entry(SIBLING_KEY).target)      // only its own mapping went
         assertEquals(0, io.writeAttempts)
         assertEquals(WriteState.Waiting("Cancelled. Hold a tag to the phone to try again."), c.state.value)
+
+        // Consent does not survive abandon(): the next tap asks again instead of writing.
+        store.put(retainedMapping())
+        c.onTag(FakeHandle); settle(work)
+        c.confirm()
+        c.abandon(); settle(work)
+        c.onTag(FakeHandle); settle(work)
+        assertTrue(c.state.value is WriteState.Confirm)
+        assertEquals(0, io.writeAttempts)
+        assertNull(store.get(REF_KEY))
+        assertEquals(SIBLING_URI, store.entry(SIBLING_KEY).target)
     }
 
     // ---- 5: row 7 ------------------------------------------------------------------------------
@@ -351,6 +370,25 @@ class NoteTagWriteControllerTest {
         assertEquals(1, io.writeAttempts)
     }
 
+    @Test fun aThirdTapAfterAWrittenResultIsDropped() = runTest {
+        val io = FakeTagIo(inspection(maxSize = SMALL), written())
+        val work = SupervisorJob()
+        val c = controller(io, LONG_URI, this + work)
+
+        c.onTag(FakeHandle); settle(work)                                    // 1: the binding warning
+        c.confirm()
+        c.onTag(FakeHandle); settle(work)                                    // 2: the write
+        val landed = c.state.value as WriteState.Written
+        assertEquals(2, io.inspectCount)
+        assertEquals(1, io.writeAttempts)
+
+        c.onTag(FakeHandle); settle(work)                                    // 3: dropped, never re-read
+
+        assertEquals(2, io.inspectCount)
+        assertEquals(1, io.writeAttempts)
+        assertEquals(landed, c.state.value)
+    }
+
     // ---- 10: row 6 -----------------------------------------------------------------------------
 
     @Test fun aRefusedPlanNeverReachesTheWriter() = runTest {
@@ -369,6 +407,8 @@ class NoteTagWriteControllerTest {
     private companion object {
         val REF: UUID = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val REF_KEY: String = REF.toString()
+        const val SIBLING_KEY = "0000ffff-0000-ffff-0000-ffffffffffff"
+        const val SIBLING_URI = "https://example.org/a/different/phone/bound/tag"
         const val WRITTEN_AT = 1_700_000_000_000L
         const val JOPLIN = "joplin://x-callback-url/openNote?id=0123456789ABCDEFfedcba9876543210"
         const val LONG_URI = "https://example.org/some/rather/long/path/that/we/will/measure"

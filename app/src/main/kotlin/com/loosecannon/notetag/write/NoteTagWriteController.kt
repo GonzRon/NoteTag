@@ -12,9 +12,11 @@ import com.loosecannon.notetag.nfc.TagIo
 import com.loosecannon.notetag.nfc.WriteResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -46,7 +48,7 @@ class NoteTagWriteController(
     val state: StateFlow<WriteState> = _state
     private val busy = AtomicBoolean(false)
     private var pending: Pending? = null      // a confirmation awaits the next tap of the same tag content
-    private var done = false
+    @Volatile private var done = false
 
     /** Consent is for THIS existing content and THIS plan kind (invariant 10). */
     private class Pending(val plan: WritePlan, val existing: NoteTagContent, val consented: Boolean)
@@ -104,8 +106,12 @@ class NoteTagWriteController(
         when (val r = tagIo.write(tag, plan.records, lock = false)) {
             is WriteResult.Written -> {
                 val at = clock()
-                if (plan is WritePlan.DeviceBound) runCatching { store.confirm(entry.uuid, at) }   // the read-back is the proof
-                else runCatching { store.put(entry.copy(writtenAt = at)) }                          // convenience only: never load-bearing
+                // A verified write is recorded even if the screen is already leaving; a store
+                // failure still cannot escape.
+                withContext(NonCancellable) {
+                    if (plan is WritePlan.DeviceBound) runCatching { store.confirm(entry.uuid, at) }   // the read-back is the proof
+                    else runCatching { store.put(entry.copy(writtenAt = at)) }                          // convenience only: never load-bearing
+                }
                 done = true
                 _state.value = WriteState.Written(entry.copy(writtenAt = at), deviceBound = plan is WritePlan.DeviceBound)
             }
@@ -120,9 +126,17 @@ class NoteTagWriteController(
     }
 
     /** Leaving the screen before any write: nothing can have reached a tag, so a pending LOCAL_REF mapping may go. */
-    fun abandon(): Job? = pending?.plan?.let { p -> scope.launch { forget(p) } }
+    fun abandon(): Job? { val p = pending; pending = null; return p?.let { scope.launch { forget(it.plan) } } }
 
-    private suspend fun forget(plan: WritePlan) { if (plan is WritePlan.DeviceBound) runCatching { store.remove(plan.content.uuid.toString()) } }
+    /**
+     * Cleanup finishes even while the scope is being torn down: a bare `runCatching` would swallow
+     * the CancellationException and leave the mapping behind. A store failure still cannot escape.
+     */
+    private suspend fun forget(plan: WritePlan) {
+        if (plan is WritePlan.DeviceBound) withContext(NonCancellable) {
+            runCatching { store.remove(plan.content.uuid.toString()) }
+        }
+    }
 
     private fun contentOf(plan: WritePlan): NoteTagContent.Writable = when (plan) {
         is WritePlan.Compact -> plan.content; is WritePlan.FullUri -> plan.content
