@@ -47,6 +47,9 @@ val SkyTint = Color(0xFFD7E6F9)
 /** Derived: Slate lifted one step — the card surface in the dark. */
 val Ink = Color(0xFF363C46)
 
+/** Derived: Mist two steps lighter, so quiet text carries on Ink the way Steel does on Frost. */
+val Haze = Color(0xFFB4BECB)
+
 private val LightScheme = lightColorScheme(
     primary = Azure,
     onPrimary = Paper,
@@ -86,7 +89,7 @@ private val DarkScheme = darkColorScheme(
     surface = Slate,
     onSurface = Frost,
     surfaceVariant = Ink,
-    onSurfaceVariant = Mist,
+    onSurfaceVariant = Haze,
     surfaceContainerHigh = Ink,
     outline = Mist,
 )

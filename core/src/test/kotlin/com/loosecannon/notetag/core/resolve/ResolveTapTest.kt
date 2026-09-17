@@ -79,6 +79,23 @@ class ResolveTapTest {
         )
     }
 
+    @Test fun aUriWithAnUnknownSchemeIsTheConfirmationMessageNamingItNeverOpen() = runTest {
+        // Not on the block list and not on the allowlist: NoteTag says which scheme it is refusing
+        // to launch by itself (LinkCheck.NeedsConfirmation), and still never opens it.
+        val store = storeWithNoFile()
+        val uri = "zotero://select/items/1"
+        val records = codec.encode(NoteTagContent.Uri(uri))
+        val resolver = ResolveTap(codec, store)
+
+        val outcome = resolver.resolve(records)
+
+        assertEquals(
+            TapOutcome.Message("This tag holds a zotero link, which NoteTag does not open by itself: $uri"),
+            outcome,
+        )
+        assertIs<TapOutcome.Message>(outcome)
+    }
+
     // --- LOCAL_REF: the only kind that needs the store ---
 
     @Test fun aLocalRefHitOpensItsTargetAndCarriesTheUuid() = runTest {
@@ -115,6 +132,29 @@ class ResolveTapTest {
         val outcome = resolver.resolve(records)
 
         assertEquals(TapOutcome.Message("This tag was written on another phone, so this phone cannot open it."), outcome)
+    }
+
+    @Test fun aLocalRefHitOnABlockedTargetIsAMessageNeverOpen() = runTest {
+        // The stored target goes through LinkLaunchPolicy at launch time too, so a mapping that
+        // reached the file some other way (a restored backup) gets the same refusal as a fresh one.
+        val store = realStore()
+        val uuid = UUID.randomUUID()
+        store.put(
+            TagEntry(
+                uuid = uuid.toString(),
+                kind = "LOCAL_REF",
+                label = "javascript:alert(1)",
+                target = "javascript:alert(1)",
+                writtenAt = 222L,
+            ),
+        )
+        val records = codec.encode(NoteTagContent.LocalRef(uuid))
+        val resolver = ResolveTap(codec, store)
+
+        val outcome = resolver.resolve(records)
+
+        assertEquals(TapOutcome.Message("This tag points at a link NoteTag will not open."), outcome)
+        assertIs<TapOutcome.Message>(outcome)
     }
 
     // --- row 9 / §23: sibling isolation ---
