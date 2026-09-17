@@ -26,6 +26,12 @@ class NdefEnvelopeTest {
         assertEquals("tnf=4 type=com.example.other:tag", foreign.description)
     }
 
+    @Test fun ourDomainWithADifferentTypeNameIsForeignWithTheFullTypeInTheDescription() {
+        val decoded = envelope.decode(listOf(external("com.example.app:other", byteArrayOf(0x00))))
+        val foreign = assertIs<EnvelopeContent.Foreign>(decoded)
+        assertEquals("tnf=4 type=com.example.app:other", foreign.description)
+    }
+
     @Test fun ourTypeUnderTheWrongTnfIsForeign() {
         val wrong = NdefRecordData(0x01, identity.externalType.toByteArray(Charsets.US_ASCII), byteArrayOf(0x00))
         assertIs<EnvelopeContent.Foreign>(envelope.decode(listOf(wrong)))

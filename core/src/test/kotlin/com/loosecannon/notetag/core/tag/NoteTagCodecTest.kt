@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class NoteTagCodecTest {
     // TODO(Phase F): this test names an application; it stays behind when nfc-core moves to nfc-tag-core.
@@ -60,6 +61,15 @@ class NoteTagCodecTest {
         fun ours(body: ByteArray) = listOf(NdefRecordData(0x04, "com.loosecannon.notetag:tag".toByteArray(Charsets.US_ASCII), body))
         assertEquals(NoteTagContent.UnknownKind(0x04), codec.decode(ours(byteArrayOf(0x01, 0x04, 0x00, 0x7f))))
         assertEquals(NoteTagContent.NewerVersion(0x02), codec.decode(ours(byteArrayOf(0x02))))       // before any length check
+    }
+
+    @Test fun hostileBytesArePinnedNotThrown() {
+        fun ours(body: ByteArray) = listOf(NdefRecordData(0x04, "com.loosecannon.notetag:tag".toByteArray(Charsets.US_ASCII), body))
+        assertIs<NoteTagContent.Malformed>(codec.decode(ours(byteArrayOf(0x01, 0x01))))                              // 2-byte body: short of the 3-byte header
+        val invalidUtf8 = assertIs<NoteTagContent.Uri>(codec.decode(ours(byteArrayOf(0x01, 0x02, 0x00, 0xff.toByte(), 0xfe.toByte()))))
+        assertTrue('\ufffd' in invalidUtf8.uri, "expected a replacement character, got ${invalidUtf8.uri}")          // invalid UTF-8, no exception
+        assertIs<NoteTagContent.Malformed>(codec.decode(ours(byteArrayOf(0x01, 0x01, 0x80.toByte()))))               // flags 0x80: reserved
+        assertEquals(NoteTagContent.UnknownKind(255), codec.decode(ours(byteArrayOf(0x01, 0xff.toByte(), 0x00))))    // kind 0xff
     }
     @Test fun aServiceTagRecordIsForeignEvenWithAPlausibleBody() {   // §23, sibling isolation in NoteTag's direction
         val sibling = listOf(NdefRecordData(0x04, "com.loosecannon.servicetag:tag".toByteArray(Charsets.US_ASCII), byteArrayOf(0x01, 0x00) + ByteArray(16)))
