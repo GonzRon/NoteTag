@@ -72,6 +72,21 @@ The key's SHA-256 certificate fingerprint is recorded once, in the ServiceTag re
 `docs/design/phase-1a-evidence.md`. It is not reproduced here, and the keystore itself never
 enters the repository (`keystore.properties`, `*.jks` and `*.keystore` are gitignored).
 
+## Releases
+
+A release is a tag of the form `notetag-v<versionName>` (e.g. `notetag-v2.0`) pushed to
+GitHub. That tag alone triggers `.github/workflows/release.yml`, which checks out the exact
+commit under the `release` environment, runs the full test gate, builds the signed APK from that
+environment's four secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`,
+`RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`), verifies the built APK's certificate against the
+public repository variable `RELEASE_CERT_SHA256` and its `versionName` against the tag, and only
+then publishes the signed APK and its SHA-256 checksum as a GitHub Release. Ordinary CI
+(`.github/workflows/ci.yml`) never sees any of that signing material — it stays unprivileged and
+runs on every push. `tools/release-dry-run.sh` is the local, no-secrets equivalent: it runs the
+same checks against whatever signing material is on this machine and reports `PASS`, `PARTIAL —
+signing identity not independently checked`, or `BLOCKED` without ever printing a fingerprint,
+password or keystore path.
+
 ## History
 
 The narrow note-and-link NFC utility, reconstructed from its own history. This repository's
