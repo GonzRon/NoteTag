@@ -42,7 +42,7 @@ object OverwriteWording {
                 OverwriteReason.FOREIGN ->
                     if (d.detail.contains("type=$SIBLING_DOMAIN:")) "This tag belongs to ServiceTag."
                     else "This tag holds something else (${d.detail})."
-                OverwriteReason.UNREADABLE -> "This tag holds unreadable NoteTag content (${d.detail})."
+                OverwriteReason.UNREADABLE -> "This tag holds unreadable NDEF content (${d.detail})."
                 OverwriteReason.EMPTY_TAG, OverwriteReason.SAME_TAG -> error("${d.reason} never asks")
             }
         }

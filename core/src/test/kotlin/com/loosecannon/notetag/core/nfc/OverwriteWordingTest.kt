@@ -54,7 +54,7 @@ class OverwriteWordingTest {
     }
 
     @Test fun malformedNoteTagContentSaysSo() {
-        assertEquals("This tag holds unreadable NoteTag content (empty uri).", OverwriteWording.reason(NoteTagContent.Malformed("empty uri"), note))
+        assertEquals("This tag holds unreadable NDEF content (empty uri).", OverwriteWording.reason(NoteTagContent.Malformed("empty uri"), note))
     }
 
     @Test fun theDeviceBoundSentenceIsTheOwnersWording() {
