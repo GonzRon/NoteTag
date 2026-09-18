@@ -75,7 +75,7 @@ class NoteTagWriteController(
             try { handle(tag) }
             catch (t: CancellationException) { throw t }
             // One sentence, never the platform's; the exception goes to the log, not the user (R4).
-            catch (t: Throwable) { Log.w(TAG, "inspect failed", t); _state.value = WriteState.Error("Could not read the tag. Hold it still and try again.") }
+            catch (e: Exception) { Log.w(TAG, "tap failed", e); _state.value = WriteState.Error("Could not read the tag. Hold it still and try again.") }
             finally { busy.set(false) }
         }
     }
@@ -131,10 +131,11 @@ class NoteTagWriteController(
 
     /** The user pressed Write / Write over it: remember it for the next tap of the same tag (the handle went stale under the sheet). */
     fun confirm() {
-        pending = pending?.let { Pending(it.plan, it.existing, consented = true) }
+        val p = pending ?: return
+        pending = Pending(p.plan, p.existing, consented = true)
         _state.value = WriteState.Waiting("Hold the same tag to the phone again to write it.")
     }
-    fun cancel() { val p = pending; pending = null; p?.let { cleanupScope.launch { forget(it.plan) } }; _state.value = WriteState.Waiting("Cancelled. Hold a tag to the phone to try again.") }
+    fun cancel() { val p = pending ?: return; pending = null; cleanupScope.launch { forget(p.plan) }; _state.value = WriteState.Waiting("Cancelled. Hold a tag to the phone to try again.") }
 
     /**
      * The LOCAL_REF sequence (target §4.9): persist first, UNCONFIRMED (writtenAt = null); confirm

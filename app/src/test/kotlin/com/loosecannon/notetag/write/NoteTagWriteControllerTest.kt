@@ -11,6 +11,7 @@ import com.loosecannon.notetag.core.nfc.OverwriteWording
 import com.loosecannon.notetag.core.store.TagEntry
 import com.loosecannon.notetag.core.store.TagStore
 import com.loosecannon.notetag.core.tag.NoteTagCodec
+import com.loosecannon.notetag.core.tag.NoteTagContent
 import com.loosecannon.notetag.ui.FakeTagStore
 import kotlin.test.assertIs
 import kotlinx.coroutines.CoroutineScope
@@ -63,9 +64,9 @@ class NoteTagWriteControllerTest {
      * detached `CoroutineScope` swallows anything thrown out of a `launch`, while a child of the
      * test cancels the test with it and fails the case.
      *
-     * Not `backgroundScope`: with the standard test dispatcher, `advanceUntilIdle()` stops as soon
-     * as no FOREGROUND task is left, so a tap launched in the background scope would never be run
-     * and every case would assert against the state before its tap.
+     * Not `backgroundScope` — verified, not assumed: a tap `launch`ed on `backgroundScope` that
+     * hops through this same `StandardTestDispatcher` never completes under `advanceUntilIdle()`,
+     * so every case would assert against the state before its tap.
      */
     private fun test(body: suspend TestScope.() -> Unit) = runTest(dispatcher) {
         scope = CoroutineScope(coroutineContext + dispatcher)
@@ -287,6 +288,8 @@ class NoteTagWriteControllerTest {
         c.onTag(FakeHandle); advanceUntilIdle()
 
         assertEquals(1, io.writeAttempts)
+        // The bytes are the compact note itself, id normalised to lower case — not merely 49 of them.
+        assertEquals(codec.encode(NoteTagContent.JoplinNote(JOPLIN_ID)), io.recordsWritten.single())
         assertEquals(49, NdefSize.serialisedSize(io.recordsWritten.single()))
         assertEquals("JOPLIN_NOTE", (c.state.value as WriteState.Written).entry.kind)
     }
@@ -486,6 +489,21 @@ class NoteTagWriteControllerTest {
         assertEquals(landed, controller.state.value)
     }
 
+    /** The sheet is gone and nothing is pending: a stray answer must not push the screen back to Waiting. */
+    @Test fun aConfirmOrCancelAfterAWrittenResultChangesNothing() = test {
+        io.inspection = deviceBoundInspection
+
+        drive(controller)
+        val landed = controller.state.value as WriteState.Written
+
+        controller.confirm(); advanceUntilIdle()
+        controller.cancel(); advanceUntilIdle()
+
+        assertEquals(landed, controller.state.value)
+        assertEquals(1, io.writeAttempts)
+        assertEquals(listOf(REF_KEY), store.list().map { it.uuid })          // and cancel() forgot nothing
+    }
+
     // ---- 10: row 6 -----------------------------------------------------------------------------
 
     @Test fun aRefusedPlanNeverReachesTheWriter() = test {
@@ -506,6 +524,7 @@ class NoteTagWriteControllerTest {
         const val SIBLING_URI = "https://example.org/a/different/phone/bound/tag"
         const val WRITTEN_AT = 1_700_000_000_000L
         const val JOPLIN = "joplin://x-callback-url/openNote?id=0123456789ABCDEFfedcba9876543210"
+        const val JOPLIN_ID = "0123456789abcdeffedcba9876543210"
         const val LONG_URI = "https://example.org/some/rather/long/path/that/we/will/measure"
 
         /**
